@@ -102,6 +102,18 @@ export class ExerciseScorer {
         return this.toeTouch(kps, now);
       case "skater":
         return this.skater(kps, now);
+      case "grab":
+        // Grab is a falling-objects mini-game handled by GrabGame, not rep-based.
+        return { repDelta: 0, repQuality: 0, accuracy: this.smooth(100), feedback: "good" };
+      case "slice":
+        // Slice is a Fruit-Ninja mini-game handled by SliceGame, not rep-based.
+        return { repDelta: 0, repQuality: 0, accuracy: this.smooth(100), feedback: "good" };
+      case "lift":
+        // Lift is a barbell mini-game handled by LiftGame, not rep-based here.
+        return { repDelta: 0, repQuality: 0, accuracy: this.smooth(100), feedback: "good" };
+      case "karate":
+        // Karate is a fighting mini-game handled by KarateGame, not rep-based here.
+        return { repDelta: 0, repQuality: 0, accuracy: this.smooth(100), feedback: "good" };
     }
   }
 

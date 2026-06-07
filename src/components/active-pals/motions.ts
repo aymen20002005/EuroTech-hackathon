@@ -10,7 +10,11 @@ export type ChallengeKey =
   | "lunge"
   | "climbers"
   | "toeTouch"
-  | "skater";
+  | "skater"
+  | "karate"
+  | "grab"
+  | "slice"
+  | "lift";
 
 export interface Pt { x: number; y: number }
 export interface JointSet {
@@ -213,6 +217,47 @@ export function getPose(key: ChallengeKey, time: number): Pose {
       fL = { x: 44, y: 90 }; fR = { x: 56, y: 90 };
       break;
     }
+    case "grab": {
+      const reachL = s > 0;
+      head = { x: 50, y: 18 };
+      sL = { x: 40, y: 34 }; sR = { x: 60, y: 34 };
+      hip = { x: 50, y: 58 };
+      kL = { x: 46, y: 74 }; kR = { x: 54, y: 74 };
+      fL = { x: 45, y: 90 }; fR = { x: 55, y: 90 };
+      if (reachL) {
+        hL = { x: 32, y: 12 };
+        hR = { x: 64, y: 44 };
+      } else {
+        hR = { x: 68, y: 12 };
+        hL = { x: 36, y: 44 };
+      }
+      break;
+    }
+    case "slice": {
+      // Fast diagonal slashing arcs with both hands
+      const c = Math.cos(t);
+      head = { x: 50, y: 18 };
+      sL = { x: 40, y: 34 }; sR = { x: 60, y: 34 };
+      hip = { x: 50, y: 58 };
+      kL = { x: 46, y: 74 }; kR = { x: 54, y: 74 };
+      fL = { x: 45, y: 90 }; fR = { x: 55, y: 90 };
+      hL = { x: 34 + s * 14, y: 28 - c * 16 };
+      hR = { x: 66 - s * 14, y: 28 + c * 16 };
+      break;
+    }
+    case "lift": {
+      // Overhead barbell press — wrists travel from shoulders to overhead in sync
+      const up = (s + 1) / 2; // 0 = racked, 1 = overhead
+      head = { x: 50, y: 20 };
+      sL = { x: 40, y: 36 }; sR = { x: 60, y: 36 };
+      hip = { x: 50, y: 60 };
+      kL = { x: 46, y: 76 }; kR = { x: 54, y: 76 };
+      fL = { x: 45, y: 92 }; fR = { x: 55, y: 92 };
+      // hands rise together (overhead press)
+      hL = { x: 38, y: 36 - up * 26 };
+      hR = { x: 62, y: 36 - up * 26 };
+      break;
+    }
     case "skater": {
       const right = s > 0;
       const shift = right ? 10 : -10;
@@ -286,4 +331,8 @@ export const CHALLENGES: ChallengeDef[] = [
   { key: "climbers",  emoji: "⛰️", labelKey: "ex_climbers", tip: "Mountain Climbers · 30s", speed: 0.40, badTipKey: "tip_climbers",  goodTipKey: "praise_speed" },
   { key: "toeTouch",  emoji: "🤾", labelKey: "ex_toeTouch", tip: "Cross Toe-Touch · 30s",   speed: 0.22, badTipKey: "tip_toeTouch",  goodTipKey: "praise_form" },
   { key: "skater",    emoji: "⛸️", labelKey: "ex_skater",   tip: "Skater Hops · 30s",       speed: 0.26, badTipKey: "tip_skater",    goodTipKey: "praise_jumps" },
+  { key: "grab",      emoji: "🍎", labelKey: "ex_grab",      tip: "Catch & Dodge · 30s",     speed: 0.30, badTipKey: "grab_bad",      goodTipKey: "grab_good" },
+  { key: "slice",     emoji: "🗡️", labelKey: "ex_slice",     tip: "Fruit Ninja · 30s",       speed: 0.42, badTipKey: "slice_bad",     goodTipKey: "slice_good" },
+  { key: "lift",      emoji: "🏋️", labelKey: "ex_lift",      tip: "Overhead Press · 30s",    speed: 0.20, badTipKey: "lift_bad",      goodTipKey: "lift_good" },
+  { key: "karate",    emoji: "🥋", labelKey: "ex_karate",    tip: "Karate Showdown · 45s",   speed: 0.30, badTipKey: "karate_bad",    goodTipKey: "karate_good" },
 ];

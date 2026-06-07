@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Lovable App" },
       { name: "twitter:description", content: "ActivePals AI Arena is a gamified sports app for kids to challenge each other in exercise battles." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d70dd923-c320-42db-92c5-f951a059f62f/id-preview-457fd7a2--de0363f5-96ea-4d69-9832-32e9a6d7bdf1.lovable.app-1780773916446.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d70dd923-c320-42db-92c5-f951a059f62f/id-preview-457fd7a2--de0363f5-96ea-4d69-9832-32e9a6d7bdf1.lovable.app-1780773916446.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/aa47bfb6-6b56-4204-a3ef-2f36805f27c5/id-preview-e5f947d1--f30eeb9f-e902-445c-99bd-ae8925b85fae.lovable.app-1780784076475.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/aa47bfb6-6b56-4204-a3ef-2f36805f27c5/id-preview-e5f947d1--f30eeb9f-e902-445c-99bd-ae8925b85fae.lovable.app-1780784076475.png" },
     ],
     links: [
       {

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CameraFeed } from "./CameraFeed";
+import { GrabGame } from "./GrabGame";
+import { SliceGame } from "./SliceGame";
+import { LiftGame } from "./LiftGame";
+import { KarateGame } from "./KarateGame";
 import { RivalFeed } from "./RivalFeed";
 import { HUD } from "./HUD";
 import { LANGS, T, type Lang } from "./i18n";
@@ -81,7 +85,7 @@ export function ActivePalsApp() {
           setReps(0);
           setScore(0);
           setRivalScore(0);
-          setTimeLeft(30);
+          setTimeLeft(challenge.key === "karate" ? 45 : 30);
           setGrade("idle");
           setBanner(null);
           setScreen("battle");
@@ -98,10 +102,15 @@ export function ActivePalsApp() {
   useEffect(() => {
     if (screen !== "battle") return;
     tickRef.current = 0;
-    // Rival is still simulated — it ramps up at a steady pace
-    const rivalId = window.setInterval(() => {
-      setRivalScore((rs) => rs + Math.floor(5 + Math.random() * 9));
-    }, 1200);
+    // Rival is still simulated. In the grab/slice mini-games the player scores +1,
+    // so the rival earns points more slowly to keep the match competitive.
+    const isMiniGame = challenge.key === "grab" || challenge.key === "slice" || challenge.key === "lift" || challenge.key === "karate";
+    const rivalId = window.setInterval(
+      () => {
+        setRivalScore((rs) => rs + (challenge.key === "karate" ? 0 : isMiniGame ? 1 : Math.floor(5 + Math.random() * 9)));
+      },
+      isMiniGame ? 1500 : 1200,
+    );
 
     const tId = window.setInterval(() => {
       setTimeLeft((t) => {
@@ -118,7 +127,7 @@ export function ActivePalsApp() {
       window.clearInterval(rivalId);
       window.clearInterval(tId);
     };
-  }, [screen]);
+  }, [screen, challenge.key]);
 
   // Real AI score handler — called every frame the pose detector returns keypoints
   const handleScore = useCallback(
@@ -145,6 +154,106 @@ export function ActivePalsApp() {
       }
     },
     [screen, challenge.goodTipKey, challenge.badTipKey, lang],
+  );
+
+  // Grab mini-game handler — apple = +1 point, pizza = -1 point
+  const handleGrab = useCallback(
+    (delta: number) => {
+      if (screen !== "battle") return;
+      if (delta > 0) {
+        setScore((s) => s + 1);
+        setReps((r) => r + 1);
+        setStreak((s) => s + 1);
+        setGrade("excellent");
+        setAccuracy((a) => Math.min(100, a + 5));
+        setBanner({ text: T.grab_good[lang], tone: "good" });
+        pushToast({ text: "+1", tone: "good" });
+      } else {
+        setScore((s) => Math.max(0, s - 1));
+        setStreak(0);
+        setGrade("poor");
+        setAccuracy((a) => Math.max(0, a - 12));
+        setBanner({ text: T.grab_bad[lang], tone: "bad" });
+        pushToast({ text: "-1", tone: "bad" });
+      }
+    },
+    [screen, lang],
+  );
+
+  // Slice mini-game handler — every fruit sliced = +1 point
+  const handleSlice = useCallback(
+    (_delta: number) => {
+      if (screen !== "battle") return;
+      setScore((s) => s + 1);
+      setReps((r) => r + 1);
+      setStreak((s) => s + 1);
+      setGrade("excellent");
+      setAccuracy((a) => Math.min(100, a + 4));
+      setBanner({ text: T.slice_good[lang], tone: "good" });
+      pushToast({ text: "+1", tone: "good" });
+    },
+    [screen, lang],
+  );
+
+  // Lift mini-game handler — cleaner/fuller reps score more points
+  const handleLift = useCallback(
+    (quality: number) => {
+      if (screen !== "battle") return;
+      const delta = Math.max(1, Math.round(quality / 10));
+      setReps((r) => r + 1);
+      setScore((s) => s + delta);
+      setAccuracy(() => Math.max(0, Math.min(100, quality)));
+      if (quality >= 65) {
+        setStreak((s) => s + 1);
+        setGrade("excellent");
+        setBanner({ text: T.lift_good[lang], tone: "good" });
+      } else {
+        setStreak(0);
+        setGrade("poor");
+        setBanner({ text: T.lift_bad[lang], tone: "bad" });
+      }
+      pushToast({ text: `+${delta}`, tone: "good", delta });
+    },
+    [screen, lang],
+  );
+
+  // Karate fight handler — player lands strikes, blocks attacks, takes damage
+  const handleKarate = useCallback(
+    (evt: { kind: "hit" | "blocked" | "hurt" | "ko-win" | "ko-lose"; magnitude: number }) => {
+      if (screen !== "battle") return;
+      if (evt.kind === "hit") {
+        const delta = Math.max(2, Math.round(evt.magnitude / 3));
+        setScore((s) => s + delta);
+        setReps((r) => r + 1);
+        setStreak((s) => s + 1);
+        setGrade("excellent");
+        setAccuracy((a) => Math.min(100, a + 4));
+        setBanner({ text: T.karate_good[lang], tone: "good" });
+        pushToast({ text: `+${delta}`, tone: "good", delta });
+      } else if (evt.kind === "blocked") {
+        setScore((s) => s + 1);
+        setStreak((s) => s + 1);
+        setAccuracy((a) => Math.min(100, a + 6));
+        setBanner({ text: T.karate_block[lang], tone: "good" });
+        pushToast({ text: "BLOCK", tone: "good" });
+      } else if (evt.kind === "hurt") {
+        setRivalScore((rs) => rs + Math.max(2, Math.round(evt.magnitude / 3)));
+        setStreak(0);
+        setGrade("poor");
+        setAccuracy((a) => Math.max(0, a - 12));
+        setBanner({ text: T.karate_bad[lang], tone: "bad" });
+        pushToast({ text: "HIT", tone: "bad" });
+      } else if (evt.kind === "ko-win") {
+        setScore((s) => s + 25);
+        setBanner({ text: T.karate_ko[lang], tone: "good" });
+        pushToast({ text: "+25 K.O.", tone: "good", delta: 25 });
+      } else if (evt.kind === "ko-lose") {
+        setRivalScore((rs) => rs + 25);
+        setStreak(0);
+        setBanner({ text: T.karate_bad[lang], tone: "bad" });
+      }
+    },
+    [screen, lang],
   );
 
   // End battle → report
@@ -194,6 +303,10 @@ export function ActivePalsApp() {
               rival={currentRival}
               challenge={challenge}
               onScore={handleScore}
+              onGrab={handleGrab}
+              onSlice={handleSlice}
+              onLift={handleLift}
+              onKarate={handleKarate}
             />
           )}
           {screen === "report" && (
@@ -277,7 +390,7 @@ function HomeScreen({
         <div className="mb-2 flex items-center justify-between">
           <h2 className="display text-lg">{T.pickChallenge[lang]}</h2>
           <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-            12 of 12
+            {challenges.length} of {challenges.length}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -367,7 +480,7 @@ function CountdownScreen({ lang, value }: { lang: Lang; value: number }) {
 }
 
 function BattleScreen({
-  lang, accuracy, streak, reps, score, rivalScore, timeLeft, grade, banner, toasts, rival, challenge, onScore,
+  lang, accuracy, streak, reps, score, rivalScore, timeLeft, grade, banner, toasts, rival, challenge, onScore, onGrab, onSlice, onLift, onKarate,
 }: {
   lang: Lang;
   accuracy: number; streak: number; reps: number; score: number; rivalScore: number; timeLeft: number;
@@ -377,7 +490,15 @@ function BattleScreen({
   rival: { name: string; region: string };
   challenge: Challenge;
   onScore: (e: ScoreEvent) => void;
+  onGrab: (delta: number) => void;
+  onSlice: (delta: number) => void;
+  onLift: (quality: number) => void;
+  onKarate: (e: { kind: "hit" | "blocked" | "hurt" | "ko-win" | "ko-lose"; magnitude: number }) => void;
 }) {
+  const isGrab = challenge.key === "grab";
+  const isSlice = challenge.key === "slice";
+  const isLift = challenge.key === "lift";
+  const isKarate = challenge.key === "karate";
   const leadingYou = score >= rivalScore;
   return (
     <div className="space-y-3 animate-pop">
@@ -388,11 +509,21 @@ function BattleScreen({
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className={`grid gap-3 ${isKarate ? "" : "md:grid-cols-2"}`}>
         {/* You */}
         <div className="space-y-2">
           <div className="relative">
-            <CameraFeed active lang={lang} challengeKey={challenge.key} onScore={onScore} />
+            {isGrab ? (
+              <GrabGame active lang={lang} onGrab={onGrab} />
+            ) : isSlice ? (
+              <SliceGame active lang={lang} onSlice={onSlice} />
+            ) : isLift ? (
+              <LiftGame active lang={lang} onLift={onLift} />
+            ) : isKarate ? (
+              <KarateGame active lang={lang} onKarate={onKarate} />
+            ) : (
+              <CameraFeed active lang={lang} challengeKey={challenge.key} onScore={onScore} />
+            )}
             {/* floating +N toasts */}
             {toasts.map((t) => (
               <div
@@ -421,21 +552,23 @@ function BattleScreen({
           <HUD lang={lang} accuracy={accuracy} streak={streak} reps={reps} score={score} label={T.you[lang]} />
         </div>
 
-        {/* Rival */}
+        {/* Rival (skeleton feed hidden for karate — opponent lives inside the dojo canvas) */}
         <div className="space-y-2">
-          <div className="relative">
-            <RivalFeed active lang={lang} rivalName={rival.name} rivalRegion={rival.region} challengeKey={challenge.key} speed={challenge.speed} />
-            {!leadingYou && (
-              <div className="absolute right-2 top-2 rounded-full border-2 border-foreground bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase">👑 LEAD</div>
-            )}
-          </div>
+          {!isKarate && (
+            <div className="relative">
+              <RivalFeed active lang={lang} rivalName={rival.name} rivalRegion={rival.region} challengeKey={challenge.key} speed={challenge.speed} />
+              {!leadingYou && (
+                <div className="absolute right-2 top-2 rounded-full border-2 border-foreground bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase">👑 LEAD</div>
+              )}
+            </div>
+          )}
           <HUD
             lang={lang}
             accuracy={Math.min(100, 60 + (rivalScore % 35))}
             streak={Math.floor(rivalScore / 30)}
             reps={Math.floor(rivalScore / 12)}
             score={rivalScore}
-            label={T.rival[lang]}
+            label={isKarate ? rival.name : T.rival[lang]}
             timeLeft={timeLeft}
           />
         </div>
