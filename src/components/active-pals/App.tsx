@@ -1,77 +1,115 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Trophy, Flame, Crown, RotateCcw, Home, Bell, X,
+  User, HelpCircle, Check, Timer, Globe, ChevronRight, Swords,
+  Gem, ShoppingBag, Gamepad2,
+} from "lucide-react";
+import { FaDumbbell, FaRunning, FaStar, FaFire, FaMountain, FaWalking, FaShieldAlt, FaSkating, FaHandPaper } from "react-icons/fa";
+import { GiBoxingGlove, GiMuscleUp, GiCartwheel, GiWeightLiftingUp, GiKatana, GiFruitBowl, GiSwordClash } from "react-icons/gi";
+import type { IconType } from "react-icons";
 import { CameraFeed } from "./CameraFeed";
 import { GrabGame } from "./GrabGame";
-import { SliceGame } from "./SliceGame";
-import { LiftGame } from "./LiftGame";
 import { KarateGame } from "./KarateGame";
+import { LiftGame } from "./LiftGame";
+import { SliceGame } from "./SliceGame";
 import { RivalFeed } from "./RivalFeed";
 import { HUD } from "./HUD";
+import { DolphinMascot, getDolphinMood } from "./DolphinMascot";
+import { LeaderboardScreen } from "./LeaderboardScreen";
+import { ShopScreen } from "./ShopScreen";
+import type { ShopItem } from "./ShopScreen";
 import { LANGS, T, type Lang } from "./i18n";
 import { CHALLENGES, type ChallengeDef } from "./motions";
 import type { ScoreEvent } from "./scoring";
 
-type Screen = "home" | "matchmaking" | "countdown" | "battle" | "report";
-
+type Screen    = "home" | "matchmaking" | "countdown" | "battle" | "report";
+type MainTab   = "dolphin" | "games" | "leaderboard" | "shop";
 type Challenge = ChallengeDef;
 
+const HK_GRAD = "linear-gradient(135deg, oklch(0.40 0.24 22) 0%, oklch(0.55 0.18 355) 100%)";
+
 const RIVALS = [
-  { name: "Kenji 🐉", region: "Hong Kong" },
-  { name: "Mei Mei 🌸", region: "Shanghai" },
-  { name: "Leo ⚡", region: "Toronto" },
-  { name: "Aanya 🌟", region: "Mumbai" },
-  { name: "Hiro 🍣", region: "Osaka" },
+  { name: "Kenji",  region: "Hong Kong" },
+  { name: "Mei Mei",region: "Shanghai"  },
+  { name: "Leo",    region: "Toronto"   },
+  { name: "Aanya",  region: "Mumbai"    },
+  { name: "Hiro",   region: "Osaka"     },
 ];
 
-interface Toast {
-  id: number;
-  text: string;
-  tone: "good" | "bad";
-  delta?: number;
-}
+interface Toast { id: number; text: string; tone: "good" | "bad"; delta?: number }
+
+/* ══════════════════════════════════════════════
+   ROOT COMPONENT
+══════════════════════════════════════════════ */
 
 export function ActivePalsApp() {
-  const [lang, setLang] = useState<Lang>("en");
-  const [screen, setScreen] = useState<Screen>("home");
+  const [lang, setLang]       = useState<Lang>("en");
+  const [screen, setScreen]   = useState<Screen>("home");
+  const [mainTab, setMainTab] = useState<MainTab>("dolphin");
   const [challenge, setChallenge] = useState<Challenge>(CHALLENGES[0]);
-  const [rival] = useState(RIVALS[0]);
-  const [rivalIdx, setRivalIdx] = useState(0);
+  const [rivalIdx, setRivalIdx]   = useState(0);
 
-  // Battle state
-  const [accuracy, setAccuracy] = useState(85);
-  const [streak, setStreak] = useState(0);
-  const [reps, setReps] = useState(0);
-  const [score, setScore] = useState(0);
+  /* battle state */
+  const [accuracy,   setAccuracy]   = useState(85);
+  const [streak,     setStreak]     = useState(0);
+  const [reps,       setReps]       = useState(0);
+  const [score,      setScore]      = useState(0);
   const [rivalScore, setRivalScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(30);
-  const [grade, setGrade] = useState<"excellent" | "poor" | "idle">("idle");
-  const [banner, setBanner] = useState<{ text: string; tone: "good" | "bad" } | null>(null);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [countdown, setCountdown] = useState(3);
-  const [stats, setStats] = useState({ form: 0, rhythm: 0, speed: 0 });
+  const [timeLeft,   setTimeLeft]   = useState(30);
+  const [grade,      setGrade]      = useState<"excellent" | "poor" | "idle">("idle");
+  const [banner,     setBanner]     = useState<{ text: string; tone: "good" | "bad" } | null>(null);
+  const [toasts,     setToasts]     = useState<Toast[]>([]);
+  const [countdown,  setCountdown]  = useState(3);
+  const [stats,      setStats]      = useState({ form: 0, rhythm: 0, speed: 0 });
 
-  const currentRival = RIVALS[rivalIdx % RIVALS.length] || rival;
+  /* global player state */
+  const [totalScore,        setTotalScore]        = useState(0);
+  const [diamonds,          setDiamonds]          = useState(340);
+  const dayStreak                                  = 3; // demo value
+  const myRank                                     = 30;
+  const [equippedAccessory, setEquippedAccessory] = useState<string | null>(null);
+  const [ownedAccessories,  setOwnedAccessories]  = useState<string[]>([]);
 
-  // ---- HOME → MATCHMAKING ----
-  function pickChallenge(c: Challenge) {
-    setChallenge(c);
-    setScreen("matchmaking");
-  }
+  /* notifications */
+  const [showNotif,    setShowNotif]    = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifTime,    setNotifTime]    = useState("09:00");
 
-  // Matchmaking auto-advance
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ("Notification" in window) setNotifEnabled(Notification.permission === "granted");
+    const saved = localStorage.getItem("zw_notify_time");
+    if (saved) setNotifTime(saved);
+  }, []);
+
+  useEffect(() => {
+    if (!notifEnabled) return;
+    const id = setInterval(() => {
+      const now = new Date();
+      const cur = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+      if (cur !== notifTime) return;
+      const today = now.toDateString();
+      const last  = localStorage.getItem("zw_last_notif");
+      if (last === today) return;
+      localStorage.setItem("zw_last_notif", today);
+      new Notification("ZaoWay — Time to Move! 🐬", {
+        body: "Your dolphin is waiting! Roll out of bed and start playing.",
+      });
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [notifEnabled, notifTime]);
+
+  /* ── matchmaking / countdown / battle timers ── */
+  const currentRival = RIVALS[rivalIdx % RIVALS.length];
+  function pickChallenge(c: Challenge) { setChallenge(c); setScreen("matchmaking"); }
+
   useEffect(() => {
     if (screen !== "matchmaking") return;
-    const rotate = window.setInterval(() => setRivalIdx((i) => i + 1), 700);
-    const t = window.setTimeout(() => {
-      window.clearInterval(rotate);
-      setScreen("countdown");
-    }, 3200);
-    return () => {
-      window.clearInterval(rotate);
-      window.clearTimeout(t);
-    };
+    const rot = window.setInterval(() => setRivalIdx((i) => i + 1), 700);
+    const t   = window.setTimeout(() => { window.clearInterval(rot); setScreen("countdown"); }, 3200);
+    return () => { window.clearInterval(rot); window.clearTimeout(t); };
   }, [screen]);
 
-  // Countdown
   useEffect(() => {
     if (screen !== "countdown") return;
     setCountdown(3);
@@ -79,17 +117,9 @@ export function ActivePalsApp() {
       setCountdown((c) => {
         if (c <= 1) {
           window.clearInterval(id);
-          // reset battle
-          setAccuracy(85);
-          setStreak(0);
-          setReps(0);
-          setScore(0);
-          setRivalScore(0);
-          setTimeLeft(challenge.key === "karate" ? 45 : 30);
-          setGrade("idle");
-          setBanner(null);
-          setScreen("battle");
-          return 0;
+          setAccuracy(85); setStreak(0); setReps(0); setScore(0);
+          setRivalScore(0); setTimeLeft(30); setGrade("idle"); setBanner(null);
+          setScreen("battle"); return 0;
         }
         return c - 1;
       });
@@ -97,172 +127,45 @@ export function ActivePalsApp() {
     return () => window.clearInterval(id);
   }, [screen]);
 
-  // Battle ticker
-  const tickRef = useRef(0);
   useEffect(() => {
     if (screen !== "battle") return;
-    tickRef.current = 0;
-    // Rival is still simulated. In the grab/slice mini-games the player scores +1,
-    // so the rival earns points more slowly to keep the match competitive.
-    const isMiniGame = challenge.key === "grab" || challenge.key === "slice" || challenge.key === "lift" || challenge.key === "karate";
-    const rivalId = window.setInterval(
-      () => {
-        setRivalScore((rs) => rs + (challenge.key === "karate" ? 0 : isMiniGame ? 1 : Math.floor(5 + Math.random() * 9)));
-      },
-      isMiniGame ? 1500 : 1200,
-    );
-
-    const tId = window.setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          window.clearInterval(tId);
-          window.clearInterval(rivalId);
-          return 0;
-        }
-        return t - 1;
-      });
+    const rivalId = window.setInterval(() => setRivalScore((rs) => rs + Math.floor(5 + Math.random() * 9)), 1200);
+    const tId     = window.setInterval(() => {
+      setTimeLeft((t) => { if (t <= 1) { window.clearInterval(tId); window.clearInterval(rivalId); return 0; } return t - 1; });
     }, 1000);
+    return () => { window.clearInterval(rivalId); window.clearInterval(tId); };
+  }, [screen]);
 
-    return () => {
-      window.clearInterval(rivalId);
-      window.clearInterval(tId);
-    };
-  }, [screen, challenge.key]);
-
-  // Real AI score handler — called every frame the pose detector returns keypoints
-  const handleScore = useCallback(
-    (evt: ScoreEvent) => {
-      if (screen !== "battle") return;
-      setAccuracy(evt.accuracy);
-      setGrade(evt.feedback === "good" ? "excellent" : evt.feedback === "bad" ? "poor" : "idle");
-      if (evt.repDelta > 0) {
-        const q = evt.repQuality;
-        const delta = Math.max(5, Math.round(6 + q / 10));
-        setReps((r) => r + evt.repDelta);
-        setScore((s) => s + delta * evt.repDelta);
-        if (q >= 65) {
-          setStreak((s) => s + 1);
-          const praise = T[challenge.goodTipKey] ?? T.excellent;
-          setBanner({ text: praise[lang], tone: "good" });
-          pushToast({ text: `+${delta}`, tone: "good", delta });
-        } else {
-          setStreak(0);
-          const tip = T[challenge.badTipKey] ?? T.faster;
-          setBanner({ text: tip[lang], tone: "bad" });
-          pushToast({ text: `+${delta}`, tone: "good", delta });
-        }
-      }
-    },
-    [screen, challenge.goodTipKey, challenge.badTipKey, lang],
-  );
-
-  // Grab mini-game handler — apple = +1 point, pizza = -1 point
-  const handleGrab = useCallback(
-    (delta: number) => {
-      if (screen !== "battle") return;
-      if (delta > 0) {
-        setScore((s) => s + 1);
-        setReps((r) => r + 1);
+  const handleScore = useCallback((evt: ScoreEvent) => {
+    if (screen !== "battle") return;
+    setAccuracy(evt.accuracy);
+    setGrade(evt.feedback === "good" ? "excellent" : evt.feedback === "bad" ? "poor" : "idle");
+    if (evt.repDelta > 0) {
+      const q     = evt.repQuality;
+      const delta = Math.max(5, Math.round(6 + q / 10));
+      setReps((r)  => r + evt.repDelta);
+      setScore((s) => s + delta * evt.repDelta);
+      setTotalScore((ts) => Math.min(ts + Math.round(q * 0.5), 200));
+      if (q >= 65) {
         setStreak((s) => s + 1);
-        setGrade("excellent");
-        setAccuracy((a) => Math.min(100, a + 5));
-        setBanner({ text: T.grab_good[lang], tone: "good" });
-        pushToast({ text: "+1", tone: "good" });
-      } else {
-        setScore((s) => Math.max(0, s - 1));
-        setStreak(0);
-        setGrade("poor");
-        setAccuracy((a) => Math.max(0, a - 12));
-        setBanner({ text: T.grab_bad[lang], tone: "bad" });
-        pushToast({ text: "-1", tone: "bad" });
-      }
-    },
-    [screen, lang],
-  );
-
-  // Slice mini-game handler — every fruit sliced = +1 point
-  const handleSlice = useCallback(
-    (_delta: number) => {
-      if (screen !== "battle") return;
-      setScore((s) => s + 1);
-      setReps((r) => r + 1);
-      setStreak((s) => s + 1);
-      setGrade("excellent");
-      setAccuracy((a) => Math.min(100, a + 4));
-      setBanner({ text: T.slice_good[lang], tone: "good" });
-      pushToast({ text: "+1", tone: "good" });
-    },
-    [screen, lang],
-  );
-
-  // Lift mini-game handler — cleaner/fuller reps score more points
-  const handleLift = useCallback(
-    (quality: number) => {
-      if (screen !== "battle") return;
-      const delta = Math.max(1, Math.round(quality / 10));
-      setReps((r) => r + 1);
-      setScore((s) => s + delta);
-      setAccuracy(() => Math.max(0, Math.min(100, quality)));
-      if (quality >= 65) {
-        setStreak((s) => s + 1);
-        setGrade("excellent");
-        setBanner({ text: T.lift_good[lang], tone: "good" });
-      } else {
-        setStreak(0);
-        setGrade("poor");
-        setBanner({ text: T.lift_bad[lang], tone: "bad" });
-      }
-      pushToast({ text: `+${delta}`, tone: "good", delta });
-    },
-    [screen, lang],
-  );
-
-  // Karate fight handler — player lands strikes, blocks attacks, takes damage
-  const handleKarate = useCallback(
-    (evt: { kind: "hit" | "blocked" | "hurt" | "ko-win" | "ko-lose"; magnitude: number }) => {
-      if (screen !== "battle") return;
-      if (evt.kind === "hit") {
-        const delta = Math.max(2, Math.round(evt.magnitude / 3));
-        setScore((s) => s + delta);
-        setReps((r) => r + 1);
-        setStreak((s) => s + 1);
-        setGrade("excellent");
-        setAccuracy((a) => Math.min(100, a + 4));
-        setBanner({ text: T.karate_good[lang], tone: "good" });
+        setBanner({ text: (T[challenge.goodTipKey] ?? T.excellent)[lang], tone: "good" });
         pushToast({ text: `+${delta}`, tone: "good", delta });
-      } else if (evt.kind === "blocked") {
-        setScore((s) => s + 1);
-        setStreak((s) => s + 1);
-        setAccuracy((a) => Math.min(100, a + 6));
-        setBanner({ text: T.karate_block[lang], tone: "good" });
-        pushToast({ text: "BLOCK", tone: "good" });
-      } else if (evt.kind === "hurt") {
-        setRivalScore((rs) => rs + Math.max(2, Math.round(evt.magnitude / 3)));
+      } else {
         setStreak(0);
-        setGrade("poor");
-        setAccuracy((a) => Math.max(0, a - 12));
-        setBanner({ text: T.karate_bad[lang], tone: "bad" });
-        pushToast({ text: "HIT", tone: "bad" });
-      } else if (evt.kind === "ko-win") {
-        setScore((s) => s + 25);
-        setBanner({ text: T.karate_ko[lang], tone: "good" });
-        pushToast({ text: "+25 K.O.", tone: "good", delta: 25 });
-      } else if (evt.kind === "ko-lose") {
-        setRivalScore((rs) => rs + 25);
-        setStreak(0);
-        setBanner({ text: T.karate_bad[lang], tone: "bad" });
+        setBanner({ text: (T[challenge.badTipKey] ?? T.faster)[lang], tone: "bad" });
+        pushToast({ text: `+${delta}`, tone: "good", delta });
       }
-    },
-    [screen, lang],
-  );
+    }
+  }, [screen, challenge.goodTipKey, challenge.badTipKey, lang]);
 
-  // End battle → report
+  const tickRef = useRef(0); void tickRef;
   useEffect(() => {
     if (screen === "battle" && timeLeft === 0) {
-      const form = Math.min(100, 60 + Math.round(score / 8));
+      const form   = Math.min(100, 60 + Math.round(score / 8));
       const rhythm = Math.min(100, 55 + Math.round(reps * 1.6));
-      const speed = Math.min(100, 50 + Math.round(reps * 1.8));
+      const speed  = Math.min(100, 50 + Math.round(reps * 1.8));
       setStats({ form, rhythm, speed });
+      setDiamonds((d) => d + Math.max(5, Math.floor(score / 10)));
       const t = window.setTimeout(() => setScreen("report"), 800);
       return () => window.clearTimeout(t);
     }
@@ -274,154 +177,433 @@ export function ActivePalsApp() {
     window.setTimeout(() => setToasts((arr) => arr.filter((x) => x.id !== id)), 1200);
   }
 
+  const inBattle = screen !== "home";
+
   return (
-    <div className="min-h-screen px-3 pb-10 pt-4 sm:px-6">
-      <div className="mx-auto w-full max-w-3xl">
-        <TopBar lang={lang} setLang={setLang} />
-        <div className="mt-4">
-          {screen === "home" && (
-            <HomeScreen lang={lang} onPick={pickChallenge} challenges={CHALLENGES} />
-          )}
-          {screen === "matchmaking" && (
-            <MatchmakingScreen lang={lang} rival={RIVALS[rivalIdx % RIVALS.length]} />
-          )}
-          {screen === "countdown" && (
-            <CountdownScreen lang={lang} value={countdown} />
-          )}
-          {screen === "battle" && (
-            <BattleScreen
-              lang={lang}
-              accuracy={accuracy}
-              streak={streak}
-              reps={reps}
-              score={score}
-              rivalScore={rivalScore}
-              timeLeft={timeLeft}
-              grade={grade}
-              banner={banner}
-              toasts={toasts}
-              rival={currentRival}
-              challenge={challenge}
-              onScore={handleScore}
-              onGrab={handleGrab}
-              onSlice={handleSlice}
-              onLift={handleLift}
-              onKarate={handleKarate}
-            />
-          )}
-          {screen === "report" && (
-            <ReportScreen
-              lang={lang}
-              score={score}
-              rivalScore={rivalScore}
-              stats={stats}
-              onRematch={() => setScreen("countdown")}
-              onHome={() => setScreen("home")}
-            />
+    <div className="min-h-screen pb-24 pt-4">
+      <div className="mx-auto w-full max-w-3xl px-3 sm:px-6">
+        <TopBar lang={lang} setLang={setLang} diamonds={diamonds} onBell={() => setShowNotif(true)}/>
+
+        <div className="mt-5">
+          {inBattle ? (
+            <>
+              {screen === "matchmaking" && <MatchmakingScreen lang={lang} rival={currentRival}/>}
+              {screen === "countdown"   && <CountdownScreen lang={lang} value={countdown}/>}
+              {screen === "battle" && (
+                <BattleScreen
+                  lang={lang} accuracy={accuracy} streak={streak} reps={reps}
+                  score={score} rivalScore={rivalScore} timeLeft={timeLeft}
+                  grade={grade} banner={banner} toasts={toasts}
+                  rival={currentRival} challenge={challenge} onScore={handleScore}
+                />
+              )}
+              {screen === "report" && (
+                <ReportScreen
+                  lang={lang} score={score} rivalScore={rivalScore} stats={stats}
+                  onRematch={() => setScreen("countdown")}
+                  onHome={() => { setScreen("home"); setMainTab("games"); }}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {mainTab === "dolphin" && (
+                <DolphinHome
+                  lang={lang} totalScore={totalScore} dayStreak={dayStreak}
+                  diamonds={diamonds} myRank={myRank} equippedAccessory={equippedAccessory}
+                  onPlay={() => setMainTab("games")}
+                />
+              )}
+              {mainTab === "games" && (
+                <GamesScreen lang={lang} challenges={CHALLENGES} onPick={pickChallenge}/>
+              )}
+              {mainTab === "leaderboard" && <LeaderboardScreen lang={lang}/>}
+              {mainTab === "shop" && (
+                <ShopScreen
+                  lang={lang} diamonds={diamonds}
+                  ownedItems={ownedAccessories} equippedItem={equippedAccessory}
+                  onBuy={(item: ShopItem) => {
+                    setDiamonds((d) => d - item.price);
+                    setOwnedAccessories((prev) => [...prev, item.id]);
+                    setEquippedAccessory(item.id);
+                  }}
+                  onEquip={(id) => setEquippedAccessory(id)}
+                />
+              )}
+            </>
           )}
         </div>
-        <Footer lang={lang} />
+        <Footer lang={lang}/>
+      </div>
+
+      {/* Fixed bottom nav (home screens only) */}
+      {!inBattle && <BottomNav tab={mainTab} setTab={setMainTab} lang={lang}/>}
+
+      {/* Notification modal */}
+      {showNotif && (
+        <NotifModal
+          lang={lang} notifTime={notifTime} notifEnabled={notifEnabled}
+          onSave={async (time, want) => {
+            if (want && "Notification" in window) {
+              const perm    = await Notification.requestPermission();
+              const granted = perm === "granted";
+              setNotifEnabled(granted);
+              if (granted) { localStorage.setItem("zw_notify_time", time); setNotifTime(time); }
+            } else {
+              setNotifEnabled(false);
+            }
+            setShowNotif(false);
+          }}
+          onClose={() => setShowNotif(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   DOLPHIN HOME
+══════════════════════════════════════════════ */
+
+const MOOD_LABEL: Record<string, Record<Lang, string>> = {
+  sleeping: { en: "Zzz… wake me up!",       "zh-HK": "你還沒動過！",     "zh-CN": "你还没动过！"   },
+  sad:      { en: "Come on, let's move!",    "zh-HK": "加油！動一動吧",   "zh-CN": "加油！动一动吧" },
+  neutral:  { en: "Not bad, keep going!",    "zh-HK": "還不錯，繼續！",   "zh-CN": "还不错，继续！" },
+  happy:    { en: "Looking great today!",    "zh-HK": "今日好棒！",       "zh-CN": "今天很棒！"     },
+  excited:  { en: "ON FIRE! Incredible! 🔥", "zh-HK": "超厲害！繼續燃燒！","zh-CN": "超厉害！继续燃烧！" },
+};
+
+function DolphinHome({
+  lang, totalScore, dayStreak, diamonds, myRank, equippedAccessory, onPlay,
+}: {
+  lang: Lang; totalScore: number; dayStreak: number; diamonds: number; myRank: number;
+  equippedAccessory: string | null; onPlay: () => void;
+}) {
+  const mood   = getDolphinMood(totalScore);
+  const hour   = new Date().getHours();
+  const greet  = lang === "en"
+    ? (hour < 12 ? "Good morning 👋" : hour < 18 ? "Good afternoon 👋" : "Good evening 👋")
+    : (hour < 12 ? "早安 👋" : hour < 18 ? "下午好 👋" : "晚安 👋");
+
+  return (
+    <div className="flex flex-col items-center pb-4 animate-pop">
+      <div className="w-full text-center mb-2">
+        <p className="text-sm text-muted-foreground font-medium">{greet}</p>
+        <h2 className="display text-2xl mt-0.5">
+          {lang === "en" ? "How's your body today?" : "今天身體感覺怎樣？"}
+        </h2>
+      </div>
+
+      {/* Pink dolphin mascot */}
+      <DolphinMascot mood={mood} accessory={equippedAccessory} size={220}/>
+
+      {/* Mood chip */}
+      <div className={`mt-2 mb-5 px-5 py-2 rounded-full text-sm font-bold ${
+        mood === "excited" ? "bg-primary text-primary-foreground"
+        : mood === "happy" ? "bg-accent text-accent-foreground"
+        : mood === "sleeping" || mood === "sad" ? "bg-muted text-muted-foreground"
+        : "bg-secondary text-secondary-foreground"
+      }`}>
+        {MOOD_LABEL[mood]?.[lang] ?? ""}
+      </div>
+
+      {/* Quick stats */}
+      <div className="flex gap-3 mb-5 w-full">
+        {([
+          { Icon: Flame,  value: `${dayStreak}d`, label: lang === "en" ? "Streak"   : "連勝" },
+          { Icon: Gem,    value: diamonds,         label: lang === "en" ? "Diamonds" : "鑽石" },
+          { Icon: Trophy, value: `#${myRank}`,     label: lang === "en" ? "Rank"     : "排名" },
+        ] as const).map(({ Icon, value, label }) => (
+          <div key={label} className="flex-1 chunky bg-card flex flex-col items-center py-3 gap-0.5">
+            <Icon size={18} className="text-primary" strokeWidth={2}/>
+            <span className="text-xl font-bold">{value}</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Activity + streak week */}
+      <div className="w-full chunky bg-card p-4 mb-5">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-semibold">{lang === "en" ? "Today's Activity" : "今日活動"}</span>
+          <span className="text-xs text-muted-foreground">{Math.min(totalScore, 100)} / 100 pts</span>
+        </div>
+        <div className="h-3 rounded-full bg-secondary overflow-hidden mb-3">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${Math.min(100, totalScore)}%`,
+              background: totalScore >= 80 ? "oklch(0.48 0.23 22)"
+                : totalScore >= 50 ? "oklch(0.87 0.10 350)"
+                : "oklch(0.75 0.08 40)",
+            }}
+          />
+        </div>
+        <div className="flex gap-1.5">
+          {[1,2,3,4,5,6,7].map((d) => (
+            <div key={d} className={`flex-1 h-8 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${
+              d <= dayStreak ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
+            }`}>
+              {d <= dayStreak ? <Check size={12} strokeWidth={3}/> : d}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Play CTA */}
+      <button
+        onClick={onPlay}
+        className="w-full py-4 rounded-2xl text-lg font-bold text-white flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
+        style={{ background: HK_GRAD }}
+      >
+        {lang === "en" ? "Start Moving" : "開始活動"}
+        <ChevronRight size={22} strokeWidth={3}/>
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   BOTTOM NAV
+══════════════════════════════════════════════ */
+
+function BottomNav({ tab, setTab, lang }: { tab: MainTab; setTab: (t: MainTab) => void; lang: Lang }) {
+  const tabs = [
+    { id: "dolphin"     as MainTab, Icon: Home,        label: lang === "en" ? "Home"  : "主頁" },
+    { id: "games"       as MainTab, Icon: Gamepad2,    label: lang === "en" ? "Games" : "遊戲" },
+    { id: "leaderboard" as MainTab, Icon: Trophy,      label: lang === "en" ? "Ranks" : "排名" },
+    { id: "shop"        as MainTab, Icon: ShoppingBag, label: lang === "en" ? "Shop"  : "商店" },
+  ];
+  return (
+    <nav className="fixed bottom-0 inset-x-0 bg-card border-t border-border flex z-40">
+      {tabs.map(({ id, Icon, label }) => (
+        <button
+          key={id}
+          onClick={() => setTab(id)}
+          className={`flex-1 flex flex-col items-center py-3 gap-0.5 transition-colors ${
+            tab === id ? "text-primary" : "text-muted-foreground"
+          }`}
+        >
+          <Icon size={22} strokeWidth={tab === id ? 2.5 : 1.8}/>
+          <span className="text-[10px] font-semibold">{label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   NOTIFICATION MODAL
+══════════════════════════════════════════════ */
+
+function NotifModal({ lang, notifTime, notifEnabled, onSave, onClose }: {
+  lang: Lang; notifTime: string; notifEnabled: boolean;
+  onSave: (time: string, enabled: boolean) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [time, setTime] = useState(notifTime);
+  const [want, setWant] = useState(notifEnabled);
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-card rounded-3xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="display text-xl flex items-center gap-2">
+            <Bell size={20} className="text-primary"/>
+            {lang === "en" ? "Daily Reminder" : "每日提醒"}
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={20}/></button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-2xl bg-secondary">
+            <span className="text-sm font-semibold">
+              {lang === "en" ? "Enable reminders" : "開啟提醒"}
+            </span>
+            <button
+              onClick={() => setWant(!want)}
+              className={`w-12 h-6 rounded-full transition-colors ${want ? "bg-primary" : "bg-muted"}`}
+            >
+              <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform mx-0.5 ${want ? "translate-x-6" : "translate-x-0"}`}/>
+            </button>
+          </div>
+
+          {/* Time picker */}
+          {want && (
+            <div className="p-3 rounded-2xl bg-secondary">
+              <label className="text-xs text-muted-foreground uppercase tracking-wide font-semibold block mb-1.5">
+                {lang === "en" ? "Reminder time" : "提醒時間"}
+              </label>
+              <input
+                type="time" value={time} onChange={(e) => setTime(e.target.value)}
+                className="w-full bg-card rounded-xl px-3 py-2 text-lg font-bold border border-border text-center"
+              />
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground text-center">
+            {lang === "en"
+              ? "Works when ZaoWay is open in your browser."
+              : "在瀏覽器開啟時生效。"}
+          </p>
+
+          <button
+            onClick={() => onSave(time, want)}
+            className="w-full py-3 rounded-2xl text-white font-bold shadow"
+            style={{ background: HK_GRAD }}
+          >
+            {lang === "en" ? "Save" : "儲存"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ============== Sub-screens ============== */
+/* ══════════════════════════════════════════════
+   TOP BAR
+══════════════════════════════════════════════ */
 
-function TopBar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
+function TopBar({ lang, setLang, diamonds, onBell }: {
+  lang: Lang; setLang: (l: Lang) => void; diamonds: number; onBell: () => void;
+}) {
   return (
     <header className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className="chunky flex h-11 w-11 items-center justify-center bg-secondary text-2xl">
-          🎮
+      <div className="flex items-center gap-3">
+        {/* Sneaker logo with ∞ lace */}
+        <div
+          className="flex h-11 w-11 items-center justify-center rounded-2xl shadow-md overflow-hidden"
+          style={{ background: HK_GRAD }}
+        >
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-9 w-9">
+            <path d="M 5 30 L 5 33 Q 5 36 8 36 L 32 36 Q 36 36 36 33 L 36 30 Z" fill="white" fillOpacity="0.92"/>
+            <path d="M 7.5 30 L 8.5 17 Q 11 8 18 7 L 30 7 Q 36 7 36 14 L 36 30 Z" fill="white" fillOpacity="0.85"/>
+            <path d="M 7.5 30 Q 5.5 26 6 19 Q 6.5 13 9 11" stroke="white" strokeWidth="1.5" strokeOpacity="0.42" strokeLinecap="round" fill="none"/>
+            <path d="M 9 11 Q 7.5 8.5 10.5 7.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.32" strokeLinecap="round" fill="none"/>
+            <path d="M 22 7.5 Q 31 9 35 17" stroke="white" strokeWidth="3" strokeOpacity="0.22" strokeLinecap="round" fill="none"/>
+            <path
+              d="M 20 18.5 C 20 15.8 15.5 15.8 15.5 18.5 C 15.5 21.2 20 21.2 20 18.5 C 20 15.8 24.5 15.8 24.5 18.5 C 24.5 21.2 20 21.2 20 18.5"
+              stroke="oklch(0.42 0.24 22)" strokeWidth="2.1" fill="none" strokeLinecap="round" strokeLinejoin="round"
+            />
+            <circle cx="15.5" cy="18.5" r="1.2" fill="oklch(0.42 0.24 22)" fillOpacity="0.68"/>
+            <circle cx="24.5" cy="18.5" r="1.2" fill="oklch(0.42 0.24 22)" fillOpacity="0.68"/>
+          </svg>
         </div>
         <div>
           <div className="display text-xl leading-none">{T.appName[lang]}</div>
-          <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">
-            {T.tagline[lang]}
-          </div>
+          <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">{T.tagline[lang]}</div>
         </div>
       </div>
-      <div className="chunky flex overflow-hidden bg-card">
-        {LANGS.map((l) => (
-          <button
-            key={l.code}
-            onClick={() => setLang(l.code)}
-            className={`px-3 py-1.5 text-xs font-bold transition-colors ${
-              lang === l.code ? "bg-primary" : "hover:bg-muted"
-            }`}
-          >
-            {l.label}
-          </button>
-        ))}
+
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-2.5 py-1.5 text-xs font-bold shadow-sm">
+          <Gem size={12} className="text-primary" strokeWidth={2.5}/>
+          <span>{diamonds}</span>
+        </div>
+        <button
+          onClick={onBell}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card shadow-sm text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Bell size={16} strokeWidth={2}/>
+        </button>
+        <div className="flex gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+          {LANGS.map((l) => (
+            <button
+              key={l.code} onClick={() => setLang(l.code)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                lang === l.code ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary"
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
       </div>
     </header>
   );
 }
 
-function HomeScreen({
-  lang,
-  challenges,
-  onPick,
-}: {
-  lang: Lang;
-  challenges: Challenge[];
-  onPick: (c: Challenge) => void;
-}) {
+/* ══════════════════════════════════════════════
+   GAMES SCREEN
+══════════════════════════════════════════════ */
+
+const CARD_COLORS = ["bg-moss","bg-fern","bg-lime","bg-aqua"];
+
+const CHALLENGE_ICONS: Record<string, IconType> = {
+  jacks: GiCartwheel, squat: FaDumbbell, punch: GiBoxingGlove,
+  highKnees: FaRunning, pushup: GiMuscleUp, star: FaStar,
+  plank: FaShieldAlt, burpee: FaFire, lunge: FaWalking,
+  climbers: FaMountain, toeTouch: FaHandPaper, skater: FaSkating,
+  karate: GiKatana, grab: GiFruitBowl, slice: GiSwordClash, lift: GiWeightLiftingUp,
+};
+
+function ChallengeIcon({ challengeKey, size = 36, className = "text-primary" }: { challengeKey: string; size?: number; className?: string }) {
+  const Icon = CHALLENGE_ICONS[challengeKey];
+  if (!Icon) return null;
+  return <Icon size={size} className={className}/>;
+}
+
+function GamesScreen({ lang, challenges, onPick }: { lang: Lang; challenges: Challenge[]; onPick: (c: Challenge) => void }) {
   return (
     <div className="space-y-5 animate-pop">
-      <div className="chunky relative overflow-hidden bg-primary p-5 sm:p-6">
-        <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-secondary opacity-70" />
-        <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-accent opacity-70" />
-        <div className="relative">
-          <div className="inline-block rounded-full border-2 border-foreground bg-background px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest">
-            {T.level[lang]} 7 · 1,240 {T.xp[lang]}
+      {/* Hero banner */}
+      <div className="relative overflow-hidden rounded-3xl p-6 shadow-lg sm:p-8" style={{ background: HK_GRAD }}>
+        <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "18px 18px" }}/>
+        <div className="relative text-white">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
+              <Gem size={11} strokeWidth={2.5}/> {T.diamonds[lang]} · {T.level[lang]} 7
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
+              <Trophy size={11} strokeWidth={2.5}/> 3-day streak
+            </div>
           </div>
-          <h1 className="display mt-2 text-3xl leading-none sm:text-4xl">
-            {T.tagline[lang]}
+          <h1 className="display mt-3 text-3xl leading-tight sm:text-4xl">
+            Roll out of bed.<br/>Start playing.
           </h1>
-          <p className="mt-2 max-w-md text-sm font-semibold opacity-90">
-            Move. Battle. Level up with real-time AI motion tracking.
+          <p className="mt-2 max-w-sm text-sm font-medium opacity-75">
+            Casual movement games for real life. No gym needed.
           </p>
         </div>
       </div>
 
+      {/* Games grid */}
       <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="display text-lg">{T.pickChallenge[lang]}</h2>
-          <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">
-            {challenges.length} of {challenges.length}
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="display text-base">{T.pickChallenge[lang]}</h2>
+          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+            {challenges.length} games
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {challenges.map((c, i) => {
-            const colors = ["bg-secondary", "bg-accent", "bg-primary", "bg-destructive text-destructive-foreground"];
-            return (
-              <button
-                key={c.key}
-                onClick={() => onPick(c)}
-                className={`bubble ${colors[i % colors.length]} p-3 text-left`}
-              >
-                <div className="text-3xl">{c.emoji}</div>
-                <div className="display mt-1.5 text-sm leading-tight">
-                  {T[c.labelKey][lang]}
-                </div>
-                <div className="text-[10px] font-semibold opacity-80">{c.tip}</div>
-                <div className="mt-2 inline-flex items-center gap-1 rounded-full border-2 border-foreground bg-background px-2 py-0.5 text-[9px] font-bold uppercase text-foreground">
-                  ▶ {T.startChallenge[lang]}
-                </div>
-              </button>
-            );
-          })}
+          {challenges.map((c, i) => (
+            <button key={c.key} onClick={() => onPick(c)} className={`bubble ${CARD_COLORS[i % CARD_COLORS.length]} p-4 text-left`}>
+              <div className="flex h-10 items-center">
+                <ChallengeIcon challengeKey={c.key} size={34}/>
+              </div>
+              <div className="display mt-2 text-sm leading-tight">{T[c.labelKey][lang]}</div>
+              <div className="mt-0.5 text-[10px] font-medium text-muted-foreground">{c.tip}</div>
+              <div className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary">
+                <ChevronRight size={11} strokeWidth={3}/> {T.startChallenge[lang]}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* Weekly streak */}
       <div className="chunky bg-card p-4">
-        <div className="display mb-2 text-sm uppercase">Daily Streak 🔥</div>
+        <div className="mb-3 flex items-center gap-2 text-sm font-bold">
+          <Flame size={16} className="text-primary"/> {T.dailyActivity[lang]}
+        </div>
         <div className="flex gap-2">
           {[1,2,3,4,5,6,7].map((d) => (
-            <div key={d} className={`flex h-10 flex-1 items-center justify-center rounded-xl border-2 border-foreground text-xs font-bold ${d <= 4 ? "bg-secondary" : "bg-muted"}`}>
-              {d <= 4 ? "✓" : d}
+            <div key={d} className={`flex h-10 flex-1 items-center justify-center rounded-xl text-xs font-bold transition-all ${
+              d <= 3 ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
+            }`}>
+              {d <= 3 ? <Check size={14} strokeWidth={3}/> : d}
             </div>
           ))}
         </div>
@@ -430,48 +612,66 @@ function HomeScreen({
   );
 }
 
+/* ══════════════════════════════════════════════
+   MATCHMAKING
+══════════════════════════════════════════════ */
+
 function MatchmakingScreen({ lang, rival }: { lang: Lang; rival: { name: string; region: string } }) {
   return (
-    <div className="chunky relative overflow-hidden bg-card p-8 text-center animate-pop">
-      <div className="absolute inset-x-0 top-0 h-1 animate-scanline bg-primary" />
-      <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-[3px] border-foreground bg-primary animate-wobble">
-        <div className="text-5xl">🌏</div>
+    <div className="relative overflow-hidden rounded-3xl p-8 text-center shadow-xl animate-pop" style={{ background: HK_GRAD }}>
+      <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "16px 16px" }}/>
+      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm animate-wobble"
+        style={{ boxShadow: "0 0 0 8px oklch(1 0 0 / 0.06)" }}>
+        <Globe size={42} className="text-white" strokeWidth={1.5}/>
       </div>
-      <h2 className="display mt-5 text-2xl">{T.searching[lang]}</h2>
-      <p className="mt-1 text-xs font-semibold opacity-70">
-        {T.matchmakingRegion[lang]}
-      </p>
-      <div className="mx-auto mt-5 flex max-w-xs items-center justify-between gap-2">
-        <Avatar emoji="🧒" label={T.you[lang]} tone="primary" />
-        <div className="display text-xl">{T.vs[lang]}</div>
-        <Avatar emoji="❓" label={rival.name} tone="destructive" sub={rival.region} />
-      </div>
-      <div className="mt-5 flex justify-center gap-1.5">
-        {[0,1,2].map((i) => (
-          <span key={i} className="inline-block h-3 w-3 rounded-full bg-foreground" style={{ animation: `pop 0.8s ${i * 0.15}s infinite alternate` }} />
-        ))}
+      <h2 className="display mt-6 text-2xl text-white">{T.searching[lang]}</h2>
+      <p className="mt-1 text-xs font-medium text-white/60">{T.matchmakingRegion[lang]}</p>
+      <div className="mx-auto mt-6 flex max-w-xs items-center justify-between gap-4">
+        <PlayerChip label={T.you[lang]} icon={User}/>
+        <div className="flex flex-col items-center gap-2">
+          <Swords size={18} className="text-white/50" strokeWidth={1.5}/>
+          <div className="flex gap-1.5">
+            {[0,1,2].map((i) => (
+              <span key={i} className="inline-block h-2 w-2 rounded-full bg-white/40"
+                style={{ animation: `pop 0.8s ${i * 0.15}s infinite alternate` }}/>
+            ))}
+          </div>
+        </div>
+        <PlayerChip label={rival.name} sub={rival.region} icon={HelpCircle}/>
       </div>
     </div>
   );
 }
 
-function Avatar({ emoji, label, tone, sub }: { emoji: string; label: string; tone: "primary" | "destructive"; sub?: string }) {
-  const bg = tone === "primary" ? "bg-primary" : "bg-destructive text-destructive-foreground";
+function PlayerChip({ icon: Icon, label, sub }: {
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
+  label: string; sub?: string;
+}) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className={`chunky flex h-16 w-16 items-center justify-center text-3xl ${bg}`}>{emoji}</div>
-      <div className="text-xs font-bold">{label}</div>
-      {sub && <div className="text-[10px] uppercase tracking-wider opacity-60">{sub}</div>}
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm"
+        style={{ border: "1.5px solid oklch(1 0 0 / 0.2)" }}>
+        <Icon size={26} className="text-white" strokeWidth={1.5}/>
+      </div>
+      <div className="text-xs font-semibold text-white">{label}</div>
+      {sub && <div className="text-[10px] text-white/50 uppercase tracking-wider">{sub}</div>}
     </div>
   );
 }
+
+/* ══════════════════════════════════════════════
+   COUNTDOWN
+══════════════════════════════════════════════ */
 
 function CountdownScreen({ lang, value }: { lang: Lang; value: number }) {
   return (
-    <div className="chunky flex aspect-[4/3] items-center justify-center bg-secondary p-6 text-center">
-      <div>
-        <div className="display text-sm uppercase tracking-widest">{T.ready[lang]}</div>
-        <div key={value} className="display animate-pop text-[120px] leading-none">
+    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-3xl" style={{ background: HK_GRAD }}>
+      <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "20px 20px" }}/>
+      <div className="relative text-center text-white">
+        <div className="text-sm font-semibold uppercase tracking-widest opacity-60">{T.ready[lang]}</div>
+        <div key={value} className="display animate-bounce-in text-[120px] leading-none">
           {value > 0 ? value : T.go[lang]}
         </div>
       </div>
@@ -479,172 +679,190 @@ function CountdownScreen({ lang, value }: { lang: Lang; value: number }) {
   );
 }
 
+/* ══════════════════════════════════════════════
+   BATTLE SCREEN
+══════════════════════════════════════════════ */
+
 function BattleScreen({
-  lang, accuracy, streak, reps, score, rivalScore, timeLeft, grade, banner, toasts, rival, challenge, onScore, onGrab, onSlice, onLift, onKarate,
+  lang, accuracy, streak, reps, score, rivalScore, timeLeft,
+  grade: _grade, banner, toasts, rival, challenge, onScore,
 }: {
-  lang: Lang;
-  accuracy: number; streak: number; reps: number; score: number; rivalScore: number; timeLeft: number;
-  grade: "excellent" | "poor" | "idle";
+  lang: Lang; accuracy: number; streak: number; reps: number; score: number;
+  rivalScore: number; timeLeft: number; grade: "excellent" | "poor" | "idle";
   banner: { text: string; tone: "good" | "bad" } | null;
-  toasts: Toast[];
-  rival: { name: string; region: string };
-  challenge: Challenge;
-  onScore: (e: ScoreEvent) => void;
-  onGrab: (delta: number) => void;
-  onSlice: (delta: number) => void;
-  onLift: (quality: number) => void;
-  onKarate: (e: { kind: "hit" | "blocked" | "hurt" | "ko-win" | "ko-lose"; magnitude: number }) => void;
+  toasts: Toast[]; rival: { name: string; region: string };
+  challenge: Challenge; onScore: (e: ScoreEvent) => void;
 }) {
-  const isGrab = challenge.key === "grab";
-  const isSlice = challenge.key === "slice";
-  const isLift = challenge.key === "lift";
-  const isKarate = challenge.key === "karate";
   const leadingYou = score >= rivalScore;
   return (
     <div className="space-y-3 animate-pop">
-      <div className="chunky flex items-center justify-between bg-card px-3 py-2 text-xs font-bold">
-        <span>{challenge.emoji} {T[challenge.labelKey][lang]}</span>
-        <span className={`rounded-full border-2 border-foreground px-2 py-0.5 ${timeLeft <= 5 ? "bg-destructive text-destructive-foreground" : "bg-secondary"}`}>
-          ⏱ {timeLeft}s
+      <div className="chunky flex items-center justify-between bg-card px-4 py-2.5">
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <ChallengeIcon challengeKey={challenge.key} size={15} className="text-primary"/>
+          {T[challenge.labelKey][lang]}
+        </span>
+        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+          timeLeft <= 5 ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"
+        }`}>
+          <Timer size={11} strokeWidth={2.5}/> {timeLeft}s
         </span>
       </div>
 
-      <div className={`grid gap-3 ${isKarate ? "" : "md:grid-cols-2"}`}>
-        {/* You */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* Player side */}
         <div className="space-y-2">
           <div className="relative">
-            {isGrab ? (
-              <GrabGame active lang={lang} onGrab={onGrab} />
-            ) : isSlice ? (
-              <SliceGame active lang={lang} onSlice={onSlice} />
-            ) : isLift ? (
-              <LiftGame active lang={lang} onLift={onLift} />
-            ) : isKarate ? (
-              <KarateGame active lang={lang} onKarate={onKarate} />
+            {challenge.key === "slice" ? (
+              <SliceGame active lang={lang}
+                onSlice={(d) => onScore({ repDelta: d, repQuality: 80, accuracy: 80, feedback: "good" })}/>
+            ) : challenge.key === "grab" ? (
+              <GrabGame active lang={lang}
+                onGrab={(d) => onScore({ repDelta: d > 0 ? 1 : 0, repQuality: d > 0 ? 85 : 0, accuracy: d > 0 ? 85 : 30, feedback: d > 0 ? "good" : "bad" })}/>
+            ) : challenge.key === "lift" ? (
+              <LiftGame active lang={lang}
+                onLift={(q) => onScore({ repDelta: 1, repQuality: q, accuracy: q, feedback: q > 60 ? "good" : "bad" })}/>
+            ) : challenge.key === "karate" ? (
+              <KarateGame active lang={lang}
+                onKarate={(evt) => {
+                  if (evt.kind === "hit" || evt.kind === "ko-win")
+                    onScore({ repDelta: 1, repQuality: Math.min(100, evt.magnitude * 5), accuracy: 85, feedback: "good" });
+                  else if (evt.kind === "hurt")
+                    onScore({ repDelta: 0, repQuality: 0, accuracy: 30, feedback: "bad" });
+                  else if (evt.kind === "blocked")
+                    onScore({ repDelta: 0, repQuality: 0, accuracy: 75, feedback: "good" });
+                }}/>
             ) : (
-              <CameraFeed active lang={lang} challengeKey={challenge.key} onScore={onScore} />
+              <CameraFeed active lang={lang} challengeKey={challenge.key} onScore={onScore}/>
             )}
-            {/* floating +N toasts */}
+
             {toasts.map((t) => (
-              <div
-                key={t.id}
-                className="display pointer-events-none absolute left-1/2 top-1/2 z-10 text-3xl animate-float-up"
-                style={{ color: t.tone === "good" ? "oklch(0.78 0.17 165)" : "oklch(0.72 0.2 5)", textShadow: "2px 2px 0 #1a1a2e" }}
-              >
+              <div key={t.id}
+                className="display pointer-events-none absolute left-1/2 top-1/2 z-10 text-3xl font-black animate-float-up"
+                style={{ color: t.tone === "good" ? "oklch(0.48 0.23 22)" : "oklch(0.65 0.18 50)", textShadow: "0 2px 8px oklch(0 0 0 / 0.2)" }}>
                 {t.text}
               </div>
             ))}
-            {/* banner */}
             {banner && (
-              <div
-                key={banner.text + score}
-                className={`absolute bottom-2 left-2 right-2 rounded-full border-[3px] border-foreground px-3 py-1.5 text-center text-xs font-bold animate-pop ${
-                  banner.tone === "good" ? "bg-accent" : "bg-destructive text-destructive-foreground"
-                }`}
-              >
+              <div key={banner.text + score}
+                className={`absolute bottom-2 left-2 right-2 rounded-full border border-white/30 px-3 py-1.5 text-center text-xs font-bold backdrop-blur-sm animate-pop ${
+                  banner.tone === "good" ? "bg-primary/90 text-white" : "bg-destructive text-destructive-foreground"
+                }`}>
                 {banner.text}
               </div>
             )}
             {leadingYou && (
-              <div className="absolute right-2 top-2 rounded-full border-2 border-foreground bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase">👑 LEAD</div>
+              <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-primary shadow-sm backdrop-blur-sm">
+                <Crown size={10} strokeWidth={2.5}/> LEAD
+              </div>
             )}
           </div>
-          <HUD lang={lang} accuracy={accuracy} streak={streak} reps={reps} score={score} label={T.you[lang]} />
+          <HUD lang={lang} accuracy={accuracy} streak={streak} reps={reps} score={score} label={T.you[lang]}/>
         </div>
 
-        {/* Rival (skeleton feed hidden for karate — opponent lives inside the dojo canvas) */}
+        {/* Rival side */}
         <div className="space-y-2">
-          {!isKarate && (
-            <div className="relative">
-              <RivalFeed active lang={lang} rivalName={rival.name} rivalRegion={rival.region} challengeKey={challenge.key} speed={challenge.speed} />
-              {!leadingYou && (
-                <div className="absolute right-2 top-2 rounded-full border-2 border-foreground bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase">👑 LEAD</div>
-              )}
-            </div>
-          )}
-          <HUD
-            lang={lang}
-            accuracy={Math.min(100, 60 + (rivalScore % 35))}
-            streak={Math.floor(rivalScore / 30)}
-            reps={Math.floor(rivalScore / 12)}
-            score={rivalScore}
-            label={isKarate ? rival.name : T.rival[lang]}
-            timeLeft={timeLeft}
-          />
+          <div className="relative">
+            <RivalFeed active lang={lang} rivalName={rival.name} rivalRegion={rival.region}
+              challengeKey={challenge.key} speed={challenge.speed}/>
+            {!leadingYou && (
+              <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-primary shadow-sm backdrop-blur-sm">
+                <Crown size={10} strokeWidth={2.5}/> LEAD
+              </div>
+            )}
+          </div>
+          <HUD lang={lang} accuracy={Math.min(100, 60 + (rivalScore % 35))}
+            streak={Math.floor(rivalScore / 30)} reps={Math.floor(rivalScore / 12)}
+            score={rivalScore} label={T.rival[lang]} timeLeft={timeLeft}/>
         </div>
       </div>
     </div>
   );
 }
 
-function ReportScreen({
-  lang, score, rivalScore, stats, onRematch, onHome,
-}: {
+/* ══════════════════════════════════════════════
+   REPORT SCREEN
+══════════════════════════════════════════════ */
+
+function ReportScreen({ lang, score, rivalScore, stats, onRematch, onHome }: {
   lang: Lang; score: number; rivalScore: number;
   stats: { form: number; rhythm: number; speed: number };
   onRematch: () => void; onHome: () => void;
 }) {
   const youWon = score > rivalScore;
-  const draw = score === rivalScore;
+  const draw   = score === rivalScore;
+
   const rank = useMemo(() => {
     const avg = (stats.form + stats.rhythm + stats.speed) / 3;
-    if (avg >= 85) return { letter: "S", label: "Mastery", bg: "bg-accent" };
-    if (avg >= 70) return { letter: "A", label: "Great", bg: "bg-secondary" };
-    if (avg >= 55) return { letter: "B", label: "Solid", bg: "bg-primary" };
-    return { letter: "C", label: "Keep going", bg: "bg-destructive text-destructive-foreground" };
+    if (avg >= 85) return { letter: "S", label: "Mastery",    bg: "bg-primary text-primary-foreground" };
+    if (avg >= 70) return { letter: "A", label: "Great!",     bg: "bg-fern"      };
+    if (avg >= 55) return { letter: "B", label: "Solid",      bg: "bg-moss"      };
+    return              { letter: "C", label: "Keep going!", bg: "bg-secondary" };
   }, [stats]);
+
+  const resultBg = draw
+    ? "linear-gradient(135deg, oklch(0.55 0.18 355) 0%, oklch(0.65 0.12 340) 100%)"
+    : youWon
+      ? HK_GRAD
+      : "linear-gradient(135deg, oklch(0.42 0.14 30) 0%, oklch(0.55 0.10 40) 100%)";
 
   return (
     <div className="space-y-4 animate-pop">
-      <div className={`chunky flex items-center justify-between bg-secondary p-4`}>
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">{T.verdict[lang]}</div>
-          <div className="display text-3xl leading-none">
-            {draw ? T.draw[lang] : youWon ? T.win[lang] : T.lose[lang]}
+      <div className="relative overflow-hidden rounded-3xl p-6 text-white shadow-lg" style={{ background: resultBg }}>
+        <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "18px 18px" }}/>
+        <div className="relative flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-widest opacity-60">{T.verdict[lang]}</div>
+            <div className="display mt-1 text-4xl leading-none">
+              {draw ? T.draw[lang] : youWon ? T.win[lang] : T.lose[lang]}
+            </div>
+            <div className="mt-2 text-sm font-medium opacity-75">
+              {T.you[lang]} {score} · {T.rival[lang]} {rivalScore}
+            </div>
           </div>
-          <div className="text-xs font-bold">
-            {T.you[lang]} {score} · {T.rival[lang]} {rivalScore}
-          </div>
-        </div>
-        <div className={`chunky flex h-20 w-20 items-center justify-center ${rank.bg}`}>
-          <div className="text-center">
-            <div className="display text-3xl leading-none">{rank.letter}</div>
-            <div className="text-[9px] font-bold uppercase">{rank.label}</div>
-          </div>
+          <div className="text-5xl">{draw ? "🤝" : youWon ? "🎉" : "😤"}</div>
         </div>
       </div>
 
-      <div className="chunky space-y-3 bg-card p-4">
-        <Bar label={T.formAccuracy[lang]} value={stats.form} tone="oklch(0.78 0.17 165)" />
-        <Bar label={T.rhythm[lang]} value={stats.rhythm} tone="oklch(0.78 0.14 230)" />
-        <Bar label={T.speed[lang]} value={stats.speed} tone="oklch(0.93 0.17 95)" />
+      <div className="chunky bg-card p-4">
+        <div className="flex items-start gap-4">
+          <div className={`flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl ${rank.bg}`}>
+            <div className="display text-3xl leading-none">{rank.letter}</div>
+            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide opacity-80">{rank.label}</div>
+          </div>
+          <div className="flex-1 space-y-2.5">
+            <Bar label={T.formAccuracy[lang]} value={stats.form}   color="oklch(0.48 0.23 22)"/>
+            <Bar label={T.rhythm[lang]}        value={stats.rhythm} color="oklch(0.80 0.12 350)"/>
+            <Bar label={T.speed[lang]}         value={stats.speed}  color="oklch(0.65 0.14 350)"/>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <button onClick={onRematch} className="bubble bg-accent p-4 text-left">
-          <div className="text-3xl">🔁</div>
-          <div className="display mt-1 text-lg">{T.rematch[lang]}</div>
-          <div className="text-[11px] font-semibold opacity-70">Same rival, new round.</div>
+        <button onClick={onRematch} className="bubble bg-secondary p-5 text-left">
+          <RotateCcw size={28} className="text-primary" strokeWidth={2}/>
+          <div className="display mt-2 text-lg">{T.rematch[lang]}</div>
+          <div className="mt-0.5 text-xs font-medium text-muted-foreground">Same rival, new round.</div>
         </button>
-        <button onClick={onHome} className="bubble bg-primary p-4 text-left">
-          <div className="text-3xl">🏠</div>
-          <div className="display mt-1 text-lg">{T.home[lang]}</div>
-          <div className="text-[11px] font-semibold opacity-70">Pick a new challenge.</div>
+        <button onClick={onHome} className="bubble bg-moss p-5 text-left">
+          <Home size={28} className="text-primary" strokeWidth={2}/>
+          <div className="display mt-2 text-lg">{T.home[lang]}</div>
+          <div className="mt-0.5 text-xs font-medium text-muted-foreground">Pick a new challenge.</div>
         </button>
       </div>
     </div>
   );
 }
 
-function Bar({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Bar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-xs font-bold">
-        <span>{label}</span>
-        <span>{value}%</span>
+      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-bold">{value}%</span>
       </div>
-      <div className="h-4 w-full overflow-hidden rounded-full border-[2px] border-foreground bg-background">
-        <div className="h-full transition-all" style={{ width: `${value}%`, background: tone }} />
+      <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+        <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, background: color }}/>
       </div>
     </div>
   );
@@ -652,8 +870,8 @@ function Bar({ label, value, tone }: { label: string; value: number; tone: strin
 
 function Footer({ lang }: { lang: Lang }) {
   return (
-    <footer className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest opacity-50">
-      © ActivePals AI · {lang.toUpperCase()} · Built for active kids 🌟
+    <footer className="mt-8 text-center text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+      ZaoWay · {lang.toUpperCase()} · Roll out of bed. Start playing.
     </footer>
   );
 }

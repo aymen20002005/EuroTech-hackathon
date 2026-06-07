@@ -4,10 +4,10 @@ import { ActivePalsApp } from "@/components/active-pals/App";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ActivePals AI — Kids Exercise Battles" },
-      { name: "description", content: "Gamified AI motion-tracking sports battles for kids in Hong Kong and around the world." },
-      { property: "og:title", content: "ActivePals AI" },
-      { property: "og:description", content: "Real-time AI exercise battles for kids. Jump, score, win!" },
+      { title: "ZaoWay — Your Daily Movement Game" },
+      { name: "description", content: "Casual movement games for real life. Play, earn diamonds, build your personal space. No gym needed." },
+      { property: "og:title", content: "ZaoWay" },
+      { property: "og:description", content: "Roll out of bed. Start playing. ZaoWay — movement games for young adults." },
     ],
   }),
   component: Index,

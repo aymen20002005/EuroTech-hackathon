@@ -81,10 +81,10 @@ export function CameraFeed({
   const feedback = lastFeedback.current;
   const color =
     feedback === "good"
-      ? "oklch(0.78 0.17 165)"
+      ? "oklch(0.48 0.23 22)"
       : feedback === "bad"
-        ? "oklch(0.72 0.2 5)"
-        : "oklch(0.78 0.14 230)";
+        ? "oklch(0.65 0.18 50)"
+        : "oklch(0.80 0.08 30)";
 
   // Compute bounding box around detected keypoints
   const bbox = useMemo(() => {

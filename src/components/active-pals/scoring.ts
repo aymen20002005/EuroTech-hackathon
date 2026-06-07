@@ -209,15 +209,17 @@ export class ExerciseScorer {
   private highKnees(kps: Keypoint[], now: number): ScoreEvent {
     const lH = g(kps, KP.lHip), rH = g(kps, KP.rHip);
     const lK = g(kps, KP.lKnee), rK = g(kps, KP.rKnee);
+    const lS = g(kps, KP.lShoulder), rS = g(kps, KP.rShoulder);
     if (!lH || !rH || !lK || !rK) {
       return { repDelta: 0, repQuality: 0, accuracy: this.smooth(20), feedback: "idle" };
     }
     const hipY = (lH.y + rH.y) / 2;
-    const torso = Math.max(20, Math.abs(hipY));
-    const leftUp = lK.y < hipY + torso * 0.05;
-    const rightUp = rK.y < hipY + torso * 0.05;
+    const shY = lS && rS ? (lS.y + rS.y) / 2 : hipY - 80;
+    const torso = Math.max(30, hipY - shY);
+    const leftUp = lK.y < hipY - torso * 0.2;
+    const rightUp = rK.y < hipY - torso * 0.2;
     const lift = Math.max(hipY - lK.y, hipY - rK.y);
-    const ideal = clamp((lift / Math.max(20, hipY * 0.3)) * 100, 0, 100);
+    const ideal = clamp((lift / Math.max(20, torso * 0.6)) * 100, 0, 100);
     const acc = this.smooth(ideal);
     let repDelta = 0;
     let quality = 0;
@@ -325,8 +327,9 @@ export class ExerciseScorer {
       return { repDelta: 0, repQuality: 0, accuracy: this.smooth(20), feedback: "idle" };
     }
     const hipMid = mid(lH, rH);
+    const kneeY = (lK.y + rK.y) / 2;
     const stance = Math.abs(lA.x - rA.x);
-    const drop = (hipMid.y - (mid(lK, rK).y - 30)) < 0; // hips dropped
+    const drop = (kneeY - hipMid.y) < 70; // hips dropped close to knee level
     const wide = stance > Math.abs(lH.x - rH.x) * 1.8;
     const left = lA.x < rA.x - 20;
     const phase = wide && drop ? (left ? "L" : "R") : "neutral";
