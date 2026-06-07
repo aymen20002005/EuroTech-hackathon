@@ -215,7 +215,7 @@ export function ActivePalsApp() {
                 />
               )}
               {mainTab === "games" && (
-                <GamesScreen lang={lang} challenges={CHALLENGES} onPick={pickChallenge}/>
+                <GamesScreen lang={lang} challenges={CHALLENGES} dayStreak={dayStreak} onPick={pickChallenge}/>
               )}
               {mainTab === "leaderboard" && <LeaderboardScreen lang={lang}/>}
               {mainTab === "shop" && (
@@ -267,10 +267,10 @@ export function ActivePalsApp() {
 
 const MOOD_LABEL: Record<string, Record<Lang, string>> = {
   sleeping: { en: "Zzz… wake me up!",       "zh-HK": "你還沒動過！",     "zh-CN": "你还没动过！"   },
-  sad:      { en: "Come on, let's move!",    "zh-HK": "加油！動一動吧",   "zh-CN": "加油！动一动吧" },
-  neutral:  { en: "Not bad, keep going!",    "zh-HK": "還不錯，繼續！",   "zh-CN": "还不错，继续！" },
-  happy:    { en: "Looking great today!",    "zh-HK": "今日好棒！",       "zh-CN": "今天很棒！"     },
-  excited:  { en: "ON FIRE! Incredible! 🔥", "zh-HK": "超厲害！繼續燃燒！","zh-CN": "超厉害！继续燃烧！" },
+  sad:      { en: "Come on, let's move !",    "zh-HK": "加油！動一動吧",   "zh-CN": "加油！动一动吧" },
+  neutral:  { en: "Not bad, keep going !",    "zh-HK": "還不錯，繼續！",   "zh-CN": "还不错，继续！" },
+  happy:    { en: "Looking great today !",    "zh-HK": "今日好棒！",       "zh-CN": "今天很棒！"     },
+  excited:  { en: "ON FIRE ! INCREDIBLE !", "zh-HK": "超厲害！繼續燃燒！","zh-CN": "超厉害！继续燃烧！" },
 };
 
 function DolphinHome({
@@ -280,18 +280,11 @@ function DolphinHome({
   equippedAccessory: string | null; onPlay: () => void;
 }) {
   const mood   = getDolphinMood(totalScore);
-  const hour   = new Date().getHours();
-  const greet  = lang === "en"
-    ? (hour < 12 ? "Good morning 👋" : hour < 18 ? "Good afternoon 👋" : "Good evening 👋")
-    : (hour < 12 ? "早安 👋" : hour < 18 ? "下午好 👋" : "晚安 👋");
 
   return (
     <div className="flex flex-col items-center pb-4 animate-pop">
       <div className="w-full text-center mb-2">
-        <p className="text-sm text-muted-foreground font-medium">{greet}</p>
-        <h2 className="display text-2xl mt-0.5">
-          {lang === "en" ? "How's your body today?" : "今天身體感覺怎樣？"}
-        </h2>
+        <h2 className="display text-2xl">{T.bodyToday[lang]}</h2>
       </div>
 
       {/* Pink dolphin mascot */}
@@ -471,23 +464,25 @@ function TopBar({ lang, setLang, diamonds, onBell }: {
   return (
     <header className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        {/* Sneaker logo with ∞ lace */}
         <div
-          className="flex h-11 w-11 items-center justify-center rounded-2xl shadow-md overflow-hidden"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl shadow-md"
           style={{ background: HK_GRAD }}
         >
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-9 w-9">
-            <path d="M 5 30 L 5 33 Q 5 36 8 36 L 32 36 Q 36 36 36 33 L 36 30 Z" fill="white" fillOpacity="0.92"/>
-            <path d="M 7.5 30 L 8.5 17 Q 11 8 18 7 L 30 7 Q 36 7 36 14 L 36 30 Z" fill="white" fillOpacity="0.85"/>
-            <path d="M 7.5 30 Q 5.5 26 6 19 Q 6.5 13 9 11" stroke="white" strokeWidth="1.5" strokeOpacity="0.42" strokeLinecap="round" fill="none"/>
-            <path d="M 9 11 Q 7.5 8.5 10.5 7.5" stroke="white" strokeWidth="1.5" strokeOpacity="0.32" strokeLinecap="round" fill="none"/>
-            <path d="M 22 7.5 Q 31 9 35 17" stroke="white" strokeWidth="3" strokeOpacity="0.22" strokeLinecap="round" fill="none"/>
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-8">
+            {/*
+              ∞ sign: 4 cubic bezier arcs, G1-smooth at every joint.
+              Right loop: (20,20)→(34,20) upper, (34,20)→(20,20) lower.
+              Left loop:  (20,20)→(6,20)  upper, (6,20)→(20,20)  lower.
+              All tip tangents are vertical (0,±7); center tangents are (±2,∓7).
+            */}
             <path
-              d="M 20 18.5 C 20 15.8 15.5 15.8 15.5 18.5 C 15.5 21.2 20 21.2 20 18.5 C 20 15.8 24.5 15.8 24.5 18.5 C 24.5 21.2 20 21.2 20 18.5"
-              stroke="oklch(0.42 0.24 22)" strokeWidth="2.1" fill="none" strokeLinecap="round" strokeLinejoin="round"
+              d="M 20 20 C 22 13 34 13 34 20 C 34 27 22 27 20 20 C 18 13 6 13 6 20 C 6 27 18 27 20 20 Z"
+              fill="none"
+              stroke="white"
+              strokeWidth="3.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            <circle cx="15.5" cy="18.5" r="1.2" fill="oklch(0.42 0.24 22)" fillOpacity="0.68"/>
-            <circle cx="24.5" cy="18.5" r="1.2" fill="oklch(0.42 0.24 22)" fillOpacity="0.68"/>
           </svg>
         </div>
         <div>
@@ -544,7 +539,10 @@ function ChallengeIcon({ challengeKey, size = 36, className = "text-primary" }: 
   return <Icon size={size} className={className}/>;
 }
 
-function GamesScreen({ lang, challenges, onPick }: { lang: Lang; challenges: Challenge[]; onPick: (c: Challenge) => void }) {
+function GamesScreen({ lang, challenges, dayStreak, onPick }: { lang: Lang; challenges: Challenge[]; dayStreak: number; onPick: (c: Challenge) => void }) {
+  const streakBadge = T.dayStreakBadge[lang].replace("{n}", String(dayStreak));
+  const heroLines   = T.rollOutOfBed[lang].split("\n");
+
   return (
     <div className="space-y-5 animate-pop">
       {/* Hero banner */}
@@ -557,14 +555,16 @@ function GamesScreen({ lang, challenges, onPick }: { lang: Lang; challenges: Cha
               <Gem size={11} strokeWidth={2.5}/> {T.diamonds[lang]} · {T.level[lang]} 7
             </div>
             <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm">
-              <Trophy size={11} strokeWidth={2.5}/> 3-day streak
+              <Trophy size={11} strokeWidth={2.5}/> {streakBadge}
             </div>
           </div>
           <h1 className="display mt-3 text-3xl leading-tight sm:text-4xl">
-            Roll out of bed.<br/>Start playing.
+            {heroLines.map((line, i) => (
+              <span key={i}>{line}{i < heroLines.length - 1 && <br/>}</span>
+            ))}
           </h1>
           <p className="mt-2 max-w-sm text-sm font-medium opacity-75">
-            Casual movement games for real life. No gym needed.
+            {T.gameSubtitle[lang]}
           </p>
         </div>
       </div>
@@ -578,18 +578,23 @@ function GamesScreen({ lang, challenges, onPick }: { lang: Lang; challenges: Cha
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {challenges.map((c, i) => (
-            <button key={c.key} onClick={() => onPick(c)} className={`bubble ${CARD_COLORS[i % CARD_COLORS.length]} p-4 text-left`}>
-              <div className="flex h-10 items-center">
-                <ChallengeIcon challengeKey={c.key} size={34}/>
-              </div>
-              <div className="display mt-2 text-sm leading-tight">{T[c.labelKey][lang]}</div>
-              <div className="mt-0.5 text-[10px] font-medium text-muted-foreground">{c.tip}</div>
-              <div className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary">
-                <ChevronRight size={11} strokeWidth={3}/> {T.startChallenge[lang]}
-              </div>
-            </button>
-          ))}
+          {challenges.map((c, i) => {
+            const dur = /\d+/.exec(c.tip)?.[0] ?? "30";
+            return (
+              <button key={c.key} onClick={() => onPick(c)} className={`bubble ${CARD_COLORS[i % CARD_COLORS.length]} p-4 text-left`}>
+                <div className="flex h-10 items-center">
+                  <ChallengeIcon challengeKey={c.key} size={34}/>
+                </div>
+                <div className="display mt-2 text-sm leading-tight">{T[c.labelKey][lang]}</div>
+                <div className="mt-0.5 text-[10px] font-medium text-muted-foreground">
+                  {T[c.labelKey][lang]} · {dur}{T.sec[lang]}
+                </div>
+                <div className="mt-3 flex items-center gap-1 text-[10px] font-semibold text-primary">
+                  <ChevronRight size={11} strokeWidth={3}/> {T.startChallenge[lang]}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -601,9 +606,9 @@ function GamesScreen({ lang, challenges, onPick }: { lang: Lang; challenges: Cha
         <div className="flex gap-2">
           {[1,2,3,4,5,6,7].map((d) => (
             <div key={d} className={`flex h-10 flex-1 items-center justify-center rounded-xl text-xs font-bold transition-all ${
-              d <= 3 ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
+              d <= dayStreak ? "bg-primary text-primary-foreground shadow-sm" : "bg-secondary text-muted-foreground"
             }`}>
-              {d <= 3 ? <Check size={14} strokeWidth={3}/> : d}
+              {d <= dayStreak ? <Check size={14} strokeWidth={3}/> : d}
             </div>
           ))}
         </div>
@@ -793,10 +798,10 @@ function ReportScreen({ lang, score, rivalScore, stats, onRematch, onHome }: {
 
   const rank = useMemo(() => {
     const avg = (stats.form + stats.rhythm + stats.speed) / 3;
-    if (avg >= 85) return { letter: "S", label: "Mastery",    bg: "bg-primary text-primary-foreground" };
-    if (avg >= 70) return { letter: "A", label: "Great!",     bg: "bg-fern"      };
-    if (avg >= 55) return { letter: "B", label: "Solid",      bg: "bg-moss"      };
-    return              { letter: "C", label: "Keep going!", bg: "bg-secondary" };
+    if (avg >= 85) return { letter: "S", labelKey: "rankMastery",   bg: "bg-primary text-primary-foreground" };
+    if (avg >= 70) return { letter: "A", labelKey: "rankGreat",     bg: "bg-fern"      };
+    if (avg >= 55) return { letter: "B", labelKey: "rankSolid",     bg: "bg-moss"      };
+    return              { letter: "C", labelKey: "rankKeepGoing", bg: "bg-secondary" };
   }, [stats]);
 
   const resultBg = draw
@@ -810,17 +815,14 @@ function ReportScreen({ lang, score, rivalScore, stats, onRematch, onHome }: {
       <div className="relative overflow-hidden rounded-3xl p-6 text-white shadow-lg" style={{ background: resultBg }}>
         <div className="pointer-events-none absolute inset-0 opacity-[0.06]"
           style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "18px 18px" }}/>
-        <div className="relative flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-widest opacity-60">{T.verdict[lang]}</div>
-            <div className="display mt-1 text-4xl leading-none">
-              {draw ? T.draw[lang] : youWon ? T.win[lang] : T.lose[lang]}
-            </div>
-            <div className="mt-2 text-sm font-medium opacity-75">
-              {T.you[lang]} {score} · {T.rival[lang]} {rivalScore}
-            </div>
+        <div className="relative">
+          <div className="text-[10px] font-semibold uppercase tracking-widest opacity-60">{T.verdict[lang]}</div>
+          <div className="display mt-1 text-4xl leading-none">
+            {draw ? T.draw[lang] : youWon ? T.win[lang] : T.lose[lang]}
           </div>
-          <div className="text-5xl">{draw ? "🤝" : youWon ? "🎉" : "😤"}</div>
+          <div className="mt-2 text-sm font-medium opacity-75">
+            {T.you[lang]} {score} · {T.rival[lang]} {rivalScore}
+          </div>
         </div>
       </div>
 
@@ -828,7 +830,7 @@ function ReportScreen({ lang, score, rivalScore, stats, onRematch, onHome }: {
         <div className="flex items-start gap-4">
           <div className={`flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl ${rank.bg}`}>
             <div className="display text-3xl leading-none">{rank.letter}</div>
-            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide opacity-80">{rank.label}</div>
+            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wide opacity-80">{T[rank.labelKey][lang]}</div>
           </div>
           <div className="flex-1 space-y-2.5">
             <Bar label={T.formAccuracy[lang]} value={stats.form}   color="oklch(0.48 0.23 22)"/>
@@ -842,12 +844,12 @@ function ReportScreen({ lang, score, rivalScore, stats, onRematch, onHome }: {
         <button onClick={onRematch} className="bubble bg-secondary p-5 text-left">
           <RotateCcw size={28} className="text-primary" strokeWidth={2}/>
           <div className="display mt-2 text-lg">{T.rematch[lang]}</div>
-          <div className="mt-0.5 text-xs font-medium text-muted-foreground">Same rival, new round.</div>
+          <div className="mt-0.5 text-xs font-medium text-muted-foreground">{T.sameRivalNew[lang]}</div>
         </button>
         <button onClick={onHome} className="bubble bg-moss p-5 text-left">
           <Home size={28} className="text-primary" strokeWidth={2}/>
           <div className="display mt-2 text-lg">{T.home[lang]}</div>
-          <div className="mt-0.5 text-xs font-medium text-muted-foreground">Pick a new challenge.</div>
+          <div className="mt-0.5 text-xs font-medium text-muted-foreground">{T.pickNewChallenge[lang]}</div>
         </button>
       </div>
     </div>

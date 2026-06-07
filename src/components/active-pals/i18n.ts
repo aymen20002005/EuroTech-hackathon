@@ -111,4 +111,23 @@ export const T: Dict = {
   xp: { en: "XP", "zh-HK": "經驗", "zh-CN": "经验" },
   ready: { en: "Get Ready!", "zh-HK": "預備！", "zh-CN": "预备！" },
   go: { en: "GO!", "zh-HK": "開始！", "zh-CN": "开始！" },
+
+  /* Home */
+  bodyToday:        { en: "How's your body today?",                             "zh-HK": "今天身體感覺怎樣？",             "zh-CN": "今天身体感觉怎样？" },
+
+  /* Games hero banner */
+  rollOutOfBed:     { en: "Roll out of bed.\nStart playing.",                   "zh-HK": "起床，動起來！",                 "zh-CN": "起床，动起来！" },
+  gameSubtitle:     { en: "Casual movement games for real life. No gym needed.","zh-HK": "輕鬆好玩的動感遊戲，隨時隨地，毋須健身房。","zh-CN": "轻松好玩的动感游戏，随时随地，不用健身房。" },
+  dayStreakBadge:   { en: "{n}-day streak",                                     "zh-HK": "{n}天連勝",                     "zh-CN": "{n}天连胜" },
+
+  /* Report screen */
+  sameRivalNew:     { en: "Same rival, new round.",    "zh-HK": "同一對手，再戰一場。",   "zh-CN": "同一对手，再战一场。" },
+  pickNewChallenge: { en: "Pick a new challenge.",     "zh-HK": "選擇新挑戰。",           "zh-CN": "选择新挑战。"         },
+  rankMastery:      { en: "Mastery",                   "zh-HK": "大師",                   "zh-CN": "大师"                 },
+  rankGreat:        { en: "Great!",                    "zh-HK": "出色！",                 "zh-CN": "出色！"               },
+  rankSolid:        { en: "Solid",                     "zh-HK": "不錯",                   "zh-CN": "不错"                 },
+  rankKeepGoing:    { en: "Keep going!",               "zh-HK": "繼續努力！",             "zh-CN": "继续努力！"           },
+
+  /* Duration suffix */
+  sec: { en: "s", "zh-HK": "秒", "zh-CN": "秒" },
 };
