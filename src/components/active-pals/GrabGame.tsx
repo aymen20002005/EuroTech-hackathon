@@ -46,7 +46,7 @@ export function GrabGame({ active, lang, onGrab }: Props) {
       if (!active) return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 60 } },
           audio: false,
         });
         if (cancelled) {
@@ -72,19 +72,22 @@ export function GrabGame({ active, lang, onGrab }: Props) {
     };
   }, [active]);
 
-  const { keypoints, status, size } = usePoseDetection(videoRef, active && ready);
+  const { status, keypointsRef, sizeRef } = usePoseDetection(videoRef, active && ready);
 
-  // ---- Track hand (wrist) positions in normalized video space ----
+  // ---- Hand (wrist) positions in normalized video space ----
+  // Read directly from refs each frame — no React rerender delay.
   const handsRef = useRef<{ x: number; y: number }[]>([]);
-  useEffect(() => {
-    if (!keypoints || size.w <= 0 || size.h <= 0) return;
+  const readHands = () => {
+    const kp = keypointsRef.current;
+    const sz = sizeRef.current;
+    if (!kp || sz.w <= 0 || sz.h <= 0) return;
     const hs: { x: number; y: number }[] = [];
     for (const idx of [KP.lWrist, KP.rWrist]) {
-      const k = keypoints[idx];
-      if (k && (k.score ?? 0) > 0.3) hs.push({ x: k.x / size.w, y: k.y / size.h });
+      const k = kp[idx];
+      if (k && (k.score ?? 0) > 0.3) hs.push({ x: k.x / sz.w, y: k.y / sz.h });
     }
     handsRef.current = hs;
-  }, [keypoints, size]);
+  };
 
   // ---- Game loop ----
   const itemsRef = useRef<FallingItem[]>([]);
@@ -114,6 +117,7 @@ export function GrabGame({ active, lang, onGrab }: Props) {
       if (!startTs.current) startTs.current = ts;
       const dt = lastFrame.current ? Math.min(0.05, (ts - lastFrame.current) / 1000) : 0;
       lastFrame.current = ts;
+      readHands();
 
       // Difficulty ramps up: spawn faster over time.
       const elapsed = (ts - startTs.current) / 1000;
@@ -243,10 +247,10 @@ export function GrabGame({ active, lang, onGrab }: Props) {
                 className="block text-4xl sm:text-5xl"
                 style={{
                   transform: `scaleX(-1) rotate(${it.rot}deg)`,
-                  filter:
+                  textShadow:
                     it.type === "apple"
-                      ? "drop-shadow(0 0 10px oklch(0.78 0.17 165)) drop-shadow(2px 3px 0 rgba(0,0,0,0.35))"
-                      : "drop-shadow(0 0 10px oklch(0.72 0.2 5)) drop-shadow(2px 3px 0 rgba(0,0,0,0.35))",
+                      ? "0 0 10px oklch(0.78 0.17 165), 2px 3px 0 rgba(0,0,0,0.35)"
+                      : "0 0 10px oklch(0.72 0.2 5), 2px 3px 0 rgba(0,0,0,0.35)",
                 }}
               >
                 {it.type === "apple" ? "🍎" : "🍕"}

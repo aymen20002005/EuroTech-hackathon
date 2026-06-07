@@ -30,6 +30,11 @@ export function usePoseDetection(
     if (!active) return;
     let cancelled = false;
     let lastPush = 0;
+    let lastInfer = 0;
+    let timer: number | null = null;
+    // Run inference as fast as possible but yield to the event loop between
+    // frames so the game's rAF loop isn't starved. 0ms = next macrotask.
+    const INFER_INTERVAL_MS = 0;
 
     (async () => {
       try {
@@ -55,7 +60,8 @@ export function usePoseDetection(
         detectorRef.current = detector;
         setStatus("ready");
 
-        const loop = async () => {
+        const tick = async () => {
+          if (cancelled) return;
           const v = videoRef.current;
           if (v && v.readyState >= 2 && v.videoWidth > 0) {
             sizeRef.current = { w: v.videoWidth, h: v.videoHeight };
@@ -66,7 +72,7 @@ export function usePoseDetection(
               if (poses[0]) {
                 keypointsRef.current = poses[0].keypoints as Keypoint[];
                 const now = performance.now();
-                if (now - lastPush > 60) {
+                if (now - lastPush > 16) {
                   lastPush = now;
                   force((n) => (n + 1) % 1000);
                 }
@@ -75,9 +81,14 @@ export function usePoseDetection(
               /* swallow per-frame errors */
             }
           }
-          if (!cancelled) rafRef.current = requestAnimationFrame(loop);
+          if (cancelled) return;
+          const elapsed = performance.now() - lastInfer;
+          const wait = Math.max(0, INFER_INTERVAL_MS - elapsed);
+          lastInfer = performance.now();
+          timer = window.setTimeout(tick, wait);
         };
-        rafRef.current = requestAnimationFrame(loop);
+        lastInfer = performance.now();
+        timer = window.setTimeout(tick, 0);
       } catch (e) {
         console.error("Pose detection init failed", e);
         setErrorMsg((e as Error).message);
@@ -87,6 +98,8 @@ export function usePoseDetection(
 
     return () => {
       cancelled = true;
+      if (timer != null) clearTimeout(timer);
+      timer = null;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       try {
@@ -100,6 +113,8 @@ export function usePoseDetection(
 
   return {
     keypoints: keypointsRef.current,
+    keypointsRef,
+    sizeRef,
     status,
     errorMsg,
     size: sizeRef.current,

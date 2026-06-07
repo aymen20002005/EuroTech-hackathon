@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "ZaoWay" },
       { name: "twitter:description", content: "ZaoWay — casual movement games for young adults. Roll out of bed and start playing." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/aa47bfb6-6b56-4204-a3ef-2f36805f27c5/id-preview-e5f947d1--f30eeb9f-e902-445c-99bd-ae8925b85fae.lovable.app-1780784076475.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/aa47bfb6-6b56-4204-a3ef-2f36805f27c5/id-preview-e5f947d1--f30eeb9f-e902-445c-99bd-ae8925b85fae.lovable.app-1780784076475.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/82917dc3-542e-4016-8eba-5fcc940ecb4c/id-preview-3c823995--4d78f1bb-3d93-4f58-bc91-27bb78464670.lovable.app-1780812289194.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/82917dc3-542e-4016-8eba-5fcc940ecb4c/id-preview-3c823995--4d78f1bb-3d93-4f58-bc91-27bb78464670.lovable.app-1780812289194.png" },
     ],
     links: [
       {

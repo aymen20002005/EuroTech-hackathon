@@ -48,7 +48,7 @@ export function SliceGame({ active, lang, onSlice }: Props) {
       if (!active) return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 60 } },
           audio: false,
         });
         if (cancelled) {
@@ -74,23 +74,26 @@ export function SliceGame({ active, lang, onSlice }: Props) {
     };
   }, [active]);
 
-  const { keypoints, status, size } = usePoseDetection(videoRef, active && ready);
+  const { status, keypointsRef, sizeRef } = usePoseDetection(videoRef, active && ready);
 
-  // ---- Track hand (wrist) positions + velocity in normalized video space ----
+  // ---- Hand (wrist) positions + velocity in normalized video space ----
+  // Read from refs every frame — no React rerender delay.
   const handsRef = useRef<{ x: number; y: number; vx: number; vy: number }[]>([]);
   const prevHandsRef = useRef<{ lWrist?: { x: number; y: number }; rWrist?: { x: number; y: number }; ts: number }>({ ts: 0 });
-  useEffect(() => {
-    if (!keypoints || size.w <= 0 || size.h <= 0) return;
+  const readHands = () => {
+    const kp = keypointsRef.current;
+    const sz = sizeRef.current;
+    if (!kp || sz.w <= 0 || sz.h <= 0) return;
     const now = performance.now();
     const dt = prevHandsRef.current.ts ? Math.max(0.001, (now - prevHandsRef.current.ts) / 1000) : 0.016;
     const hs: { x: number; y: number; vx: number; vy: number }[] = [];
     const prev = prevHandsRef.current;
     const nextPrev: typeof prevHandsRef.current = { ts: now };
     for (const [idx, name] of [[KP.lWrist, "lWrist"], [KP.rWrist, "rWrist"]] as const) {
-      const k = keypoints[idx];
+      const k = kp[idx];
       if (k && (k.score ?? 0) > 0.3) {
-        const x = k.x / size.w;
-        const y = k.y / size.h;
+        const x = k.x / sz.w;
+        const y = k.y / sz.h;
         const p = prev[name];
         const vx = p ? (x - p.x) / dt : 0;
         const vy = p ? (y - p.y) / dt : 0;
@@ -100,7 +103,7 @@ export function SliceGame({ active, lang, onSlice }: Props) {
     }
     prevHandsRef.current = nextPrev;
     handsRef.current = hs;
-  }, [keypoints, size]);
+  };
 
   // ---- Game loop ----
   const fruitsRef = useRef<FallingFruit[]>([]);
@@ -132,6 +135,7 @@ export function SliceGame({ active, lang, onSlice }: Props) {
       if (!startTs.current) startTs.current = ts;
       const dt = lastFrame.current ? Math.min(0.05, (ts - lastFrame.current) / 1000) : 0;
       lastFrame.current = ts;
+      readHands();
 
       const elapsed = (ts - startTs.current) / 1000;
       const spawnEvery = Math.max(500, 950 - elapsed * 12);
@@ -293,7 +297,7 @@ export function SliceGame({ active, lang, onSlice }: Props) {
                 className="block text-4xl sm:text-5xl"
                 style={{
                   transform: `scaleX(-1) rotate(${fr.rot}deg)`,
-                  filter: "drop-shadow(0 0 9px oklch(0.78 0.17 165 / 0.6)) drop-shadow(2px 3px 0 rgba(0,0,0,0.35))",
+                  textShadow: "0 0 9px oklch(0.78 0.17 165 / 0.6), 2px 3px 0 rgba(0,0,0,0.35)",
                 }}
               >
                 {fr.emoji}
