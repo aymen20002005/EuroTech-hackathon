@@ -52,7 +52,7 @@ export function LiftGame({ active, lang, onLift }: Props) {
       if (!active) return;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 360 }, frameRate: { ideal: 60 } },
           audio: false,
         });
         if (cancelled) {
@@ -78,7 +78,7 @@ export function LiftGame({ active, lang, onLift }: Props) {
     };
   }, [active]);
 
-  const { keypoints, status, size } = usePoseDetection(videoRef, active && ready);
+  const { status, keypointsRef, sizeRef } = usePoseDetection(videoRef, active && ready);
 
   const [bar, setBar] = useState<BarState | null>(null);
   const [flashes, setFlashes] = useState<RepFlash[]>([]);
@@ -89,71 +89,113 @@ export function LiftGame({ active, lang, onLift }: Props) {
   const worstLevelRef = useRef(0);
   const idc = useRef(1);
 
+  // Smoothed last-known wrist positions so a single low-confidence frame
+  // doesn't make the bar disappear or snap to one hand.
+  const lHandRef = useRef<Hand | null>(null);
+  const rHandRef = useRef<Hand | null>(null);
+  const lLastSeenRef = useRef(0);
+  const rLastSeenRef = useRef(0);
+
   const onLiftRef = useRef(onLift);
   useEffect(() => {
     onLiftRef.current = onLift;
   }, [onLift]);
 
+  // ---- Fast ref-based loop: reads keypoints every frame, no React delay ----
   useEffect(() => {
-    if (!keypoints || size.w <= 0 || size.h <= 0) return;
-    const lW = keypoints[KP.lWrist];
-    const rW = keypoints[KP.rWrist];
-    const lS = keypoints[KP.lShoulder];
-    const rS = keypoints[KP.rShoulder];
-    const lH = keypoints[KP.lHip];
-    const rH = keypoints[KP.rHip];
+    if (!active || !ready) return;
+    let raf = 0;
+    const SMOOTH = 0.45; // EMA factor — higher = snappier, lower = smoother
+    const STALE_MS = 250; // keep last wrist for this long if confidence drops
 
-    const ok = (k?: { score?: number }) => k && (k.score ?? 0) > 0.3;
-    if (!ok(lW) || !ok(rW) || !ok(lS) || !ok(rS)) {
-      setBar(null);
-      return;
-    }
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const kps = keypointsRef.current;
+      const size = sizeRef.current;
+      if (!kps || size.w <= 0 || size.h <= 0) return;
 
-    const nx = (k: { x: number }) => k.x / size.w;
-    const ny = (k: { y: number }) => k.y / size.h;
+      const lW = kps[KP.lWrist];
+      const rW = kps[KP.rWrist];
+      const lS = kps[KP.lShoulder];
+      const rS = kps[KP.rShoulder];
+      const lH = kps[KP.lHip];
+      const rH = kps[KP.rHip];
 
-    const l: Hand = { x: nx(lW!), y: ny(lW!) };
-    const r: Hand = { x: nx(rW!), y: ny(rW!) };
-    const shoulderY = (ny(lS!) + ny(rS!)) / 2;
-    const shoulderW = Math.abs(nx(lS!) - nx(rS!)) || 0.18;
-    const hipY = ok(lH) && ok(rH) ? (ny(lH!) + ny(rH!)) / 2 : shoulderY + 0.28;
-    const torso = Math.max(0.12, hipY - shoulderY);
+      const ok = (k?: { score?: number }) => k && (k.score ?? 0) > 0.25;
+      if (!ok(lS) || !ok(rS)) return;
 
-    const avgWristY = (l.y + r.y) / 2;
-    const lift = (shoulderY - avgWristY) / torso; // up = positive
-    const levelErr = Math.abs(l.y - r.y) / torso; // 0 = perfectly level
-    const widthErr = Math.abs(Math.abs(l.x - r.x) - shoulderW * 1.4) / shoulderW;
-    const grip = Math.max(0, 1 - levelErr * 1.6 - widthErr * 0.4);
+      const nx = (k: { x: number }) => k.x / size.w;
+      const ny = (k: { y: number }) => k.y / size.h;
+      const now = performance.now();
 
-    setBar({ l, r, grip, lift, gripping: true });
-
-    // ---- rep detection ----
-    if (phaseRef.current === "down") {
-      if (lift > UP_THRESH) {
-        phaseRef.current = "up";
-        peakLiftRef.current = lift;
-        worstLevelRef.current = levelErr;
+      // Update each wrist independently with EMA smoothing.
+      if (ok(lW)) {
+        const next: Hand = { x: nx(lW!), y: ny(lW!) };
+        const prev = lHandRef.current;
+        lHandRef.current = prev
+          ? { x: prev.x + (next.x - prev.x) * SMOOTH, y: prev.y + (next.y - prev.y) * SMOOTH }
+          : next;
+        lLastSeenRef.current = now;
       }
-    } else {
-      // ascending / holding overhead — track best ROM + worst levelness
-      peakLiftRef.current = Math.max(peakLiftRef.current, lift);
-      worstLevelRef.current = Math.max(worstLevelRef.current, levelErr);
-      if (lift < DOWN_THRESH) {
-        // completed a full rep (up then back down)
-        phaseRef.current = "down";
-        const rom = Math.min(1, peakLiftRef.current / 1.25);
-        const levelScore = Math.max(0, 1 - worstLevelRef.current * 2.2);
-        const quality = Math.round(Math.min(100, rom * 55 + levelScore * 45));
-        onLiftRef.current(quality);
-        setFlashes((f) => {
-          const id = idc.current++;
-          const flash = { id, x: (l.x + r.x) / 2, y: avgWristY, quality };
-          window.setTimeout(() => setFlashes((arr) => arr.filter((x) => x.id !== id)), 900);
-          return [...f, flash];
-        });
+      if (ok(rW)) {
+        const next: Hand = { x: nx(rW!), y: ny(rW!) };
+        const prev = rHandRef.current;
+        rHandRef.current = prev
+          ? { x: prev.x + (next.x - prev.x) * SMOOTH, y: prev.y + (next.y - prev.y) * SMOOTH }
+          : next;
+        rLastSeenRef.current = now;
       }
-    }
-  }, [keypoints, size]);
+
+      const lStale = now - lLastSeenRef.current > STALE_MS;
+      const rStale = now - rLastSeenRef.current > STALE_MS;
+      const l = lHandRef.current;
+      const r = rHandRef.current;
+      if (!l || !r || lStale || rStale) {
+        setBar((b) => (b === null ? b : null));
+        return;
+      }
+
+      const shoulderY = (ny(lS!) + ny(rS!)) / 2;
+      const shoulderW = Math.abs(nx(lS!) - nx(rS!)) || 0.18;
+      const hipY = ok(lH) && ok(rH) ? (ny(lH!) + ny(rH!)) / 2 : shoulderY + 0.28;
+      const torso = Math.max(0.12, hipY - shoulderY);
+
+      const avgWristY = (l.y + r.y) / 2;
+      const lift = (shoulderY - avgWristY) / torso;
+      const levelErr = Math.abs(l.y - r.y) / torso;
+      const widthErr = Math.abs(Math.abs(l.x - r.x) - shoulderW * 1.4) / shoulderW;
+      const grip = Math.max(0, 1 - levelErr * 1.6 - widthErr * 0.4);
+
+      setBar({ l: { ...l }, r: { ...r }, grip, lift, gripping: true });
+
+      // ---- rep detection ----
+      if (phaseRef.current === "down") {
+        if (lift > UP_THRESH) {
+          phaseRef.current = "up";
+          peakLiftRef.current = lift;
+          worstLevelRef.current = levelErr;
+        }
+      } else {
+        peakLiftRef.current = Math.max(peakLiftRef.current, lift);
+        worstLevelRef.current = Math.max(worstLevelRef.current, levelErr);
+        if (lift < DOWN_THRESH) {
+          phaseRef.current = "down";
+          const rom = Math.min(1, peakLiftRef.current / 1.25);
+          const levelScore = Math.max(0, 1 - worstLevelRef.current * 2.2);
+          const quality = Math.round(Math.min(100, rom * 55 + levelScore * 45));
+          onLiftRef.current(quality);
+          setFlashes((f) => {
+            const id = idc.current++;
+            const flash = { id, x: (l.x + r.x) / 2, y: avgWristY, quality };
+            window.setTimeout(() => setFlashes((arr) => arr.filter((x) => x.id !== id)), 900);
+            return [...f, flash];
+          });
+        }
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [active, ready, keypointsRef, sizeRef]);
 
   // reset state machine when (de)activated
   useEffect(() => {
@@ -161,15 +203,17 @@ export function LiftGame({ active, lang, onLift }: Props) {
       phaseRef.current = "down";
       peakLiftRef.current = 0;
       worstLevelRef.current = 0;
+      lHandRef.current = null;
+      rHandRef.current = null;
       setBar(null);
       setFlashes([]);
     }
   }, [active]);
 
-  const barAngle = bar ? (Math.atan2(bar.r.y - bar.l.y, bar.r.x - bar.l.x) * 180) / Math.PI : 0;
-  const barMidX = bar ? ((bar.l.x + bar.r.x) / 2) * 100 : 50;
-  const barMidY = bar ? ((bar.l.y + bar.r.y) / 2) * 100 : 50;
-  const barLen = bar ? Math.hypot(bar.r.x - bar.l.x, bar.r.y - bar.l.y) * 100 : 30;
+  const dx = bar ? bar.r.x - bar.l.x : 0;
+  const dy = bar ? bar.r.y - bar.l.y : 0;
+  const barAngle = bar ? (Math.atan2(dy, dx) * 180) / Math.PI : 0;
+  const barLen = bar ? Math.hypot(dx, dy) * 100 : 0;
   const liftPct = bar ? Math.max(0, Math.min(1, bar.lift / 1.25)) : 0;
   const gripGood = bar ? bar.grip > 0.55 : false;
 
@@ -205,12 +249,12 @@ export function LiftGame({ active, lang, onLift }: Props) {
           {/* the barbell */}
           {bar && (
             <div
-              className="absolute -translate-x-1/2 -translate-y-1/2"
+              className="absolute origin-left"
               style={{
-                left: `${barMidX}%`,
-                top: `${barMidY}%`,
-                width: `${Math.max(barLen, 18)}%`,
-                transform: `translate(-50%,-50%) rotate(${barAngle}deg)`,
+                left: `${bar.l.x * 100}%`,
+                top: `${bar.l.y * 100}%`,
+                width: `${barLen}%`,
+                transform: `translateY(-50%) rotate(${barAngle}deg)`,
               }}
             >
               {/* steel bar */}
